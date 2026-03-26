@@ -57,7 +57,7 @@ func (s *ContainerService) prepareStartRequest(req *model.StartAlgorithmRequest,
 		req.ServiceName = common.BuildServiceName(req.DeploymentName)
 	}
 	if req.Port == 0 {
-		req.Port = 80
+		req.Port = 8080
 	}
 	if req.CPU == "" {
 		req.CPU = "500m"
