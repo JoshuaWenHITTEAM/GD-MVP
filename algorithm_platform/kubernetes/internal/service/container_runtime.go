@@ -72,7 +72,8 @@ func (s *ContainerService) updateDeployStatus(name, namespace, status string) {
 }
 
 func (s *ContainerService) deleteDeployRecord(name, namespace string) error {
-	return db.DB.Where("k8s_deployment_name = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
+	return db.DB.Model(&model.DeployRecord{}).
+		Where("k8s_deployment_name = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
 		Updates(map[string]interface{}{
 			"is_deleted":    1,
 			"deploy_status": "deleted",
