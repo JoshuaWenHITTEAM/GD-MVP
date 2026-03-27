@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"sort"
 	"strings"
@@ -15,15 +14,16 @@ import (
 )
 
 func ProxyMultipartToService(clientset *kubernetes.Clientset, namespace, serviceName, path, filename string, content []byte, fields map[string]string) ([]byte, error) {
+
 	svc, err := clientset.CoreV1().Services(namespace).Get(context.Background(), serviceName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch service %q: %v", serviceName, err)
+		return nil, fmt.Errorf("get service failed: %w", err)
 	}
 	if len(svc.Spec.Ports) == 0 {
-		return nil, fmt.Errorf("service %q has no ports", serviceName)
+		return nil, fmt.Errorf("service %s has no ports", serviceName)
 	}
 
-	body, contentType, err := buildMultipartBody(filename, content, strings.Fields)
+	body, contentType, err := buildMultipartBody(filename, content, fields)
 	if err != nil {
 		return nil, err
 	}
@@ -67,10 +67,10 @@ func buildMultipartBody(filename string, content []byte, fields map[string]strin
 
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to create form file: %w", err)
+		return nil, "", fmt.Errorf("create file part failed: %w", err)
 	}
-	if _, err := part.Write(content); err != nil {
-		return nil, "", fmt.Errorf("failed to write content: %w", err)
+	if _, err = part.Write(content); err != nil {
+		return nil, "", fmt.Errorf("write file content failed: %w", err)
 	}
 
 	keys := make([]string, 0, len(fields))
@@ -79,13 +79,13 @@ func buildMultipartBody(filename string, content []byte, fields map[string]strin
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		if err := writer.WriteField(k, fields[k]); err != nil {
-			return nil, "", fmt.Errorf("failed to write field: %w", err)
+		if err = writer.WriteField(k, fields[k]); err != nil {
+			return nil, "", fmt.Errorf("write form field failed: %w", err)
 		}
 	}
 
-	if err := writer.Close(); err != nil {
-		return nil, "", fmt.Errorf(" failed to close multipart writer: %w", err)
+	if err = writer.Close(); err != nil {
+		return nil, "", fmt.Errorf("close multipart writer failed: %w", err)
 	}
 
 	return buf.Bytes(), writer.FormDataContentType(), nil
