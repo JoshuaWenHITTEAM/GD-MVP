@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>在线应用子系统3 - 任务算法运行与评估管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="../static/css/p3.css">
+</head>
+
+<body class="p-2 flex flex-col">
+    <!-- 1. 顶部任务状态条 -->
+    <header class="h-14 flex items-center justify-between px-6 glass-panel mb-2 rounded-lg border-b border-cyan-500/30">
+        <div class="flex items-center gap-4">
+            <span class="iconify text-3xl text-cyan-400" data-icon="material-symbols:AppSettingsAltRounded"></span>
+            <h1 class="text-xl font-bold tracking-widest glow-text">在线应用子系统 <span class="text-xs font-light text-cyan-500/70 ml-2">TASK ALGORITHM ENGINE v1.1</span></h1>
+        </div>
+        <div class="flex items-center gap-8 text-sm">
+            <div class="flex flex-col items-end">
+                <span class="text-gray-400 text-xs text-right">当前任务 ID</span>
+                <span class="text-cyan-400 font-mono">TASK-20260226-X09</span>
+            </div>
+            <div class="h-8 w-px bg-white/10"></div>
+            <div class="flex flex-col items-end">
+                <span class="text-gray-400 text-xs">执行阶段</span>
+                <span class="text-green-400">实时闭环评估中</span>
+            </div>
+            <div class="h-8 w-px bg-white/10"></div>
+            <div class="flex flex-col items-end">
+                <span class="text-gray-400 text-xs">运行总时长</span>
+                <span class="text-cyan-400 font-mono" id="timer">04:12:35.82</span>
+            </div>
+            <button
+                class="ml-4 px-4 py-1.5 bg-cyan-600/30 border border-cyan-500 rounded text-cyan-300 hover:bg-cyan-500 hover:text-white transition-all"
+                onclick="openModal('algoModal')">
+                算法管理
+            </button>
+        </div>
+    </header>
+    <main class="flex-1 flex gap-2 overflow-hidden">
+        <!-- 2. 左侧：多模态传感器数据接入 -->
+        <aside class="w-80 flex flex-col gap-2 overflow-hidden">
+            <!-- 数据源选择与切换 -->
+            <section class="glass-panel p-3 rounded-lg">
+                <div class="flex items-center justify-between mb-3 pb-1 border-b border-white/10">
+                    <h3 class="text-xs font-bold text-cyan-300 flex items-center gap-2">
+                        <span class="iconify" data-icon="material-symbols:sensors"></span>
+                        多模态感知接入
+                    </h3>
+                    <div class="flex gap-1" id="sensor-controls">
+                        <button
+                            class="sensor-btn active px-1.5 py-0.5 rounded text-[10px] border border-white/10 hover:border-cyan-500 transition-colors"
+                            id="btn-fusion" onclick="toggleView('fusion')">融合</button>
+                        <button
+                            class="sensor-btn px-1.5 py-0.5 rounded text-[10px] border border-white/10 hover:border-cyan-500 transition-colors"
+                            id="btn-split" onclick="toggleView('split')">分屏</button>
+                    </div>
+                </div>
+                <div class="space-y-2 overflow-y-auto max-h-[calc(100vh-450px)] pr-1" id="multimodal-container">
+                    <!-- 融合视图（默认） -->
+                    <div class="relative aspect-video bg-black rounded border border-cyan-500/30 overflow-hidden"
+                        id="view-fusion">
+                        <canvas class="w-full h-full" id="fusionCanvas"></canvas>
+                        <div class="absolute top-2 left-2 pointer-events-none">
+                            <span class="text-[9px] bg-cyan-500/80 text-black px-1 font-bold">FUSED REALTIME</span>
+                        </div>
+                        <!-- 叠加信息 -->
+                        <div class="absolute bottom-2 right-2 text-[8px] text-cyan-400 font-mono text-right">
+                            LAT: 39.91<br />LON: 116.40<br />ALT: 1250m
+                        </div>
+                    </div>
+                    <!-- 传感器面板组 (分屏模式显示) -->
+                    <div class="hidden-panel space-y-2" id="view-split">
+                        <!-- 光学/红外 -->
+                        <div class="border border-orange-500/20 bg-orange-500/5 p-1 rounded relative group">
+                            <div class="flex justify-between text-[9px] text-orange-400 mb-1 px-1">
+                                <span class="flex items-center gap-1"><span class="iconify"
+                                        data-icon="material-symbols:thermostat"></span>IR THERMAL</span>
+                                <span class="animate-pulse">● LIVE</span>
+                            </div>
+                            <div
+                                class="h-24 bg-black/60 rounded flex items-center justify-center relative overflow-hidden">
+                                <img class="w-full h-full object-cover grayscale brightness-75 contrast-125 mix-blend-screen opacity-60"
+                                    src="https://images.unsplash.com/photo-1544006659-f0b21f04cb1d?auto=format&amp;fit=crop&amp;q=80&amp;w=400" />
+                                <div class="absolute inset-0 bg-gradient-to-b from-orange-500/10 to-transparent"></div>
+                                <div class="absolute inset-0 border border-orange-500/10"></div>
+                                <div class="scan-line !bg-orange-500/30 !h-0.5"></div>
+                                <div
+                                    class="absolute top-1 right-1 text-[7px] font-mono text-orange-500/80 bg-black/40 px-0.5">
+                                    CH 01</div>
+                            </div>
+                        </div>
+                        <!-- 雷达点云 -->
+                        <div class="border border-blue-500/20 bg-blue-500/5 p-1 rounded">
+                            <div class="flex justify-between text-[9px] text-blue-400 mb-1 px-1">
+                                <span class="flex items-center gap-1"><span class="iconify"
+                                        data-icon="material-symbols:radar"></span>RADAR SCAN</span>
+                                <span>77GHz</span>
+                            </div>
+                            <div class="h-24 bg-black/60 rounded overflow-hidden" id="radarPanel"></div>
+                        </div>
+                        <!-- 宽带声学 -->
+                        <div class="border border-purple-500/20 bg-purple-900/10 p-1 rounded">
+                            <div class="flex justify-between text-[9px] text-purple-400 mb-1 px-1">
+                                <span class="flex items-center gap-1"><span class="iconify"
+                                        data-icon="material-symbols:waves"></span>ACOUSTIC</span>
+                                <span>SYNC</span>
+                            </div>
+                            <canvas class="w-full h-16 bg-black/40 rounded" id="acousticCanvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+            <!-- 特征流水线 -->
+            <section class="glass-panel p-3 rounded-lg flex-1 flex flex-col min-h-0">
+                <h3 class="text-xs font-bold text-cyan-300 flex items-center gap-2 mb-3">
+                    <span class="iconify" data-icon="material-symbols:dynamic-form"></span>
+                    实时特征项同步
+                </h3>
+                <div class="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                    <div class="p-2 bg-white/5 rounded border border-white/5">
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+                            <span>目标概率密度 (Confidence)</span>
+                            <span class="text-cyan-400 font-mono">0.982</span>
+                        </div>
+                        <div class="w-full h-1 bg-white/10 rounded">
+                            <div class="h-full bg-cyan-500" style="width: 98%"></div>
+                        </div>
+                    </div>
+                    <div class="p-2 bg-white/5 rounded border border-white/5">
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+                            <span>运动轨迹一致性</span>
+                            <span class="text-green-400 font-mono">Stable</span>
+                        </div>
+                        <div class="grid grid-cols-10 gap-0.5 h-1">
+                            <div class="bg-green-500 h-full"></div>
+                            <div class="bg-green-500 h-full"></div>
+                            <div class="bg-green-500 h-full"></div>
+                            <div class="bg-green-500 h-full"></div>
+                            <div class="bg-green-500 h-full"></div>
+                            <div class="bg-green-500 h-full"></div>
+                            <div class="bg-green-500/30 h-full"></div>
+                            <div class="bg-green-500/10 h-full"></div>
+                            <div class="bg-green-500/10 h-full"></div>
+                            <div class="bg-white/5 h-full"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-1" id="feature-list">
+                        <!-- 动态特征注入 -->
+                        <div class="flex justify-between items-center py-1 border-b border-white/5">
+                            <span class="text-[10px] text-gray-400">RCS截面波形</span>
+                            <span class="text-[10px] text-blue-400 font-mono">Matched</span>
+                        </div>
+                        <div class="flex justify-between items-center py-1 border-b border-white/5">
+                            <span class="text-[10px] text-gray-400">频谱多普勒</span>
+                            <span class="text-[10px] text-purple-400 font-mono">+12.5kHz</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 h-20" id="miniSyncGraph"></div>
+                </div>
+            </section>
+        </aside>
+        <!-- 3. 中央：算法链路实时运行拓扑 -->
+        <section class="flex-1 glass-panel rounded-lg relative overflow-hidden flex flex-col">
+            <!-- 1. 背景可视化层: 目标检测与跟踪可视化显示区域 -->
+            <div class="absolute inset-0 z-0 opacity-40">
+                <canvas class="w-full h-full" id="trackingCanvas"></canvas>
+                <div class="scan-line"></div>
+            </div>
+            <!-- 2. 悬浮数据卡片 -->
+            <div
+                class="absolute bottom-4 right-4 z-20 w-48 glass-panel p-2 rounded border border-purple-500/30 bg-black/40">
+                <div class="flex items-center justify-between mb-1 border-b border-white/10 pb-1">
+                    <span class="text-[10px] font-bold text-purple-400">实时目标跟踪列表</span>
+                    <span class="text-[8px] text-gray-500" id="tracking-uuid uppercase">UID: --</span>
+                </div>
+                <div class="max-h-32 overflow-y-auto">
+                    <table class="w-full text-[9px] text-left">
+                        <tbody id="tracking-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="absolute top-4 left-4 z-10">
+                <h2 class="text-lg font-bold flex items-center gap-2 glow-text">
+                    <span class="iconify" data-icon="mdi:vector-polyline"></span>
+                    任务算法实时链路可视化 (DAG)
+                </h2>
+            </div>
+            <div class="flex-1 flex flex-col relative min-h-0">
+                <!-- DAG 链路与可视化区域总容器 -->
+                <div class="flex-1 flex flex-col p-4 pt-10 gap-4 overflow-hidden">
+                    <!-- DAG 节点展示区 -->
+                    <div class="h-32 flex items-center justify-around relative border-b border-cyan-500/10">
+                        <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;">
+                            <path d="M 100 64 H 900" fill="none" stroke="rgba(0, 251, 255, 0.2)" stroke-dasharray="4,4"
+                                stroke-width="1"></path>
+                        </svg>
+                        <div
+                            class="relative z-10 w-40 p-3 glass-panel border border-cyan-500/30 rounded flex flex-col items-center">
+                            <span class="iconify text-xl text-cyan-400 mb-1"
+                                data-icon="material-symbols:sensors"></span>
+                            <span class="text-[10px] font-bold">数据预处理</span>
+                        </div>
+                        <div class="text-cyan-400/20 transform scale-125">▶</div>
+                        <div
+                            class="relative z-10 w-44 p-3 glass-panel border border-cyan-400 rounded flex flex-col items-center node-active bg-cyan-400/5">
+                            <span class="iconify text-xl text-cyan-400 mb-1" data-icon="material-symbols:target"></span>
+                            <span class="text-[10px] font-bold text-cyan-400">目标检测算法</span>
+                            <div class="text-[9px] text-cyan-300 font-mono mt-1" id="node2-stats">LATENCY: 14.5ms</div>
+                        </div>
+                        <div class="text-cyan-400/20 transform scale-125">▶</div>
+                        <div
+                            class="relative z-10 w-44 p-3 glass-panel border border-purple-400 rounded flex flex-col items-center node-active bg-purple-400/5">
+                            <span class="iconify text-xl text-purple-400 mb-1"
+                                data-icon="material-symbols:track-changes"></span>
+                            <span class="text-[10px] font-bold text-purple-400">多目标跟踪算法</span>
+                            <div class="text-[9px] text-purple-300 font-mono mt-1" id="node3-stats">STABILITY: 0.98
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 可视化展示区：左右分布 -->
+                    <div class="flex-1 flex gap-4 min-h-0 pb-2">
+                        <div class="flex-1 flex flex-col viz-container">
+                            <div
+                                class="bg-cyan-900/40 px-3 py-1 flex justify-between items-center border-b border-cyan-500/30">
+                                <span class="text-[10px] font-bold text-cyan-300 tracking-wider">目标检测实时视图</span>
+                                <span class="text-[9px] font-mono text-cyan-500/80">YOLO_PRO</span>
+                            </div>
+                            <div class="flex-1 relative bg-black/40">
+                                <div class="scan-line"></div>
+                                <canvas class="w-full h-full" id="detectionVizCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="flex-1 flex flex-col viz-container border-purple-500/30">
+                            <div
+                                class="bg-purple-900/40 px-3 py-1 flex justify-between items-center border-b border-purple-500/30">
+                                <span class="text-[10px] font-bold text-purple-300 tracking-wider">运动轨迹分析</span>
+                                <span class="text-[9px] font-mono text-purple-500/80">DEEPSORT</span>
+                            </div>
+                            <div class="flex-1 relative bg-black/40">
+                                <div class="scan-line"
+                                    style="animation-delay: 1.5s; background: linear-gradient(90deg, transparent, var(--accent-purple), transparent);">
+                                </div>
+                                <canvas class="w-full h-full" id="trackingVizCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 底部监控仪表 -->
+            <div class="h-48 border-t border-white/10 flex p-3 gap-4">
+                <div class="flex-1 flex flex-col">
+                    <span class="text-[10px] uppercase text-gray-500 mb-1">容器资源画像</span>
+                    <div class="flex-1" id="resourceChart"></div>
+                </div>
+                <div class="w-px bg-white/5"></div>
+                <div class="w-64 flex flex-col">
+                    <span class="text-[10px] uppercase text-gray-500 mb-1">生存探针监控</span>
+                    <div class="flex-1 flex flex-col justify-between py-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs">容器存活 (Liveness)</span>
+                            <span
+                                class="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">HEALTHY</span>
+                        </div>
+                        <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                            <div class="bg-green-500 h-full w-[98%]"></div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs">算法健康 (Readiness)</span>
+                            <span class="text-xs font-mono text-cyan-400">99.2%</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px]">
+                            <span class="text-gray-500 italic">重启次数: 0</span>
+                            <span class="text-gray-500">Uptime: 142h</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- 4. 右侧：结果评估与指令输出 -->
+        <aside class="w-96 flex flex-col gap-2">
+            <!-- 评估指标 -->
+            <div class="glass-panel p-4 rounded-lg flex-1">
+                <h3 class="text-sm font-bold flex items-center gap-2 mb-4 border-b border-white/10 pb-2 text-cyan-300">
+                    <span class="iconify" data-icon="mdi:file-chart"></span>
+                    算法效果评估模块
+                </h3>
+                <div class="space-y-6">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>目标检测置信度 (Confidence)</span>
+                            <span class="text-cyan-400">98.4%</span>
+                        </div>
+                        <div class="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full bg-cyan-500 w-[98%]"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>跟踪稳定性 (Stability)</span>
+                            <span class="text-purple-400">高</span>
+                        </div>
+                        <div class="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full bg-purple-500 shadow-[0_0_8px_#8B5CFF] w-[95%]"></div>
+                        </div>
+                    </div>
+                    <!-- 雷达图对比 -->
+                    <div class="h-40" id="radarChart"></div>
+                </div>
+                <div class="mt-4 p-3 bg-cyan-950/20 border border-cyan-500/20 rounded">
+                    <h4 class="text-[11px] font-bold text-cyan-400 mb-2 underline decoration-cyan-500/50">火力覆盖情况估计</h4>
+                    <div class="grid grid-cols-2 gap-2 text-[10px]">
+                        <div>有效射程: <span class="text-white">4km</span></div>
+                        <div>拦截概率: <span class="text-green-400">92%</span></div>
+                        <div>光斑一致性: <span class="text-white">0.88</span></div>
+                        <div>建议策略: <span class="text-yellow-400 italic">常规照射</span></div>
+                    </div>
+                </div>
+            </div>
+            <!-- 控制指令输出可视化 -->
+            <div class="glass-panel p-4 rounded-lg h-72 flex flex-col">
+                <h3 class="text-sm font-bold flex items-center gap-2 mb-3 text-purple-300">
+                    <span class="iconify" data-icon="mdi:console-line"></span>
+                    输出控制指令流 (Middleware)
+                </h3>
+                <div class="flex-1 bg-black/40 rounded p-2 font-mono text-[10px] overflow-y-auto space-y-1">
+                    <p class="text-gray-500">[14:32:01.442] CMD_SENT: TURRET_MOVE_UPDATE</p>
+                    <p class="text-purple-400">{ "azimuth": 142.25, "pitch": 34.12, "velocity": 12.5 }</p>
+                    <p class="text-gray-500">[14:32:01.458] ACK_RCVD: TURRET_READY_FOR_ENGAGEMENT</p>
+                    <p class="text-cyan-400">[14:32:01.470] LASER_PULSE: FREQ_10HZ_INT75</p>
+                    <p class="text-gray-500">[14:32:01.485] CMD_SENT: TURRET_MOVE_UPDATE</p>
+                    <p class="text-purple-400">{ "azimuth": 142.38, "pitch": 34.05, "velocity": 12.4 }</p>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-4">
+                    <div class="text-center font-orbitron">
+                        <div class="text-[10px] text-gray-500">方位角 (AZ)</div>
+                        <div class="text-xl text-cyan-400">142.38°</div>
+                    </div>
+                    <div class="text-center font-orbitron">
+                        <div class="text-[10px] text-gray-500">俯仰角 (EL)</div>
+                        <div class="text-xl text-purple-400">34.05°</div>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+    </main>
+    <!-- 5. 底部审计日志与告警 -->
+    <footer class="h-10 mt-2 glass-panel rounded px-4 flex items-center justify-between text-[11px]">
+        <div class="flex items-center gap-4 overflow-hidden">
+            <span class="text-yellow-500 font-bold flex items-center gap-1">
+                <span class="iconify" data-icon="mdi:alert-decagram"></span> SYSTEM_LOG:
+            </span>
+            <div class="whitespace-nowrap animate-marquee">
+                14:32:15 - 目标数据帧正常输入 [3840x2160] | 14:32:12 - 算法容器 GPU 显存占用从 42% 升至 45% | 14:32:10 - 方位角修正反馈延迟 0.45ms
+            </div>
+        </div>
+        <div class="flex items-center gap-4 text-gray-400">
+            <span>AUDIT: ACTIVE</span>
+            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+        </div>
+    </footer>
+    <!-- 算法管理模态框 (注册、删除、修改) -->
+    <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-md" id="algoModal">
+        <div
+            class="w-[1000px] h-[700px] glass-panel rounded-2xl border border-cyan-500/50 flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-cyan-900/20">
+                <div class="flex items-center gap-2">
+                    <span class="iconify text-xl text-cyan-400" data-icon="mdi:code-braces"></span>
+                    <h2 class="text-lg font-bold">算法仓库管理与在线开发</h2>
+                </div>
+                <button class="text-gray-400 hover:text-white" onclick="closeModal('algoModal')">
+                    <span class="iconify text-2xl" data-icon="mdi:close"></span>
+                </button>
+            </div>
+            <div class="flex-1 flex overflow-hidden">
+                <!-- 左侧列表 -->
+                <div class="w-64 border-r border-white/10 p-4 space-y-4">
+                    <div class="relative">
+                        <input
+                            class="w-full bg-white/5 border border-white/20 rounded px-8 py-1.5 text-xs text-cyan-300 focus:outline-none focus:border-cyan-500"
+                            placeholder="搜索算法库..." type="text" />
+                        <span class="iconify absolute left-2 top-2 text-gray-500" data-icon="mdi:magnify"></span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-[10px] text-gray-500 mt-4 px-2 uppercase font-bold">已注册核心算法</p>
+                        <div
+                            class="p-2 bg-cyan-500/20 border border-cyan-500/50 rounded flex justify-between items-center group">
+                            <span class="text-xs">YOLO-V8X-Target</span>
+                            <span class="iconify text-red-500 hidden group-hover:block cursor-pointer"
+                                data-icon="mdi:trash-can-outline"></span>
+                        </div>
+                        <div
+                            class="p-2 hover:bg-white/5 rounded flex justify-between items-center group cursor-pointer">
+                            <span class="text-xs">SORT_Track_PRO</span>
+                            <span class="iconify text-red-500 hidden group-hover:block"
+                                data-icon="mdi:trash-can-outline"></span>
+                        </div>
+                        <div
+                            class="p-2 hover:bg-white/5 rounded flex justify-between items-center group cursor-pointer">
+                            <span class="text-xs">Laser_Turret_PID</span>
+                            <span class="iconify text-red-500 hidden group-hover:block"
+                                data-icon="mdi:trash-can-outline"></span>
+                        </div>
+                    </div>
+                    <button
+                        class="w-full py-2 bg-green-600/20 border border-green-500/50 rounded text-green-400 text-xs flex items-center justify-center gap-2">
+                        <span class="iconify" data-icon="mdi:plus"></span> 注册新算法
+                    </button>
+                </div>
+                <!-- 右侧编辑器 -->
+                <div class="flex-1 flex flex-col">
+                    <div class="h-8 bg-black/40 border-b border-white/10 px-4 flex items-center gap-4">
+                        <span class="text-[10px] text-gray-400">path/to/models/yolov8_target.py</span>
+                        <span class="text-[10px] text-green-500 ml-auto flex items-center gap-1">
+                            <i class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></i> 已保存到主镜像
+                        </span>
+                    </div>
+                    <div class="flex-1 code-editor p-4 text-xs overflow-y-auto">
+                        <pre><code>import torch
+import cv2
+
+def target_inference(frame):
+    # 初始化 YOLO 模型
+    model = torch.hub.load('ultralytics/yolov8', 'custom', path='weights/best_uav.pt')
+    
+    # 执行推理
+    results = model(frame)
+    
+    # 提取无人机坐标
+    detections = results.xyxy[0] 
+    
+    # 过滤置信度 &lt; 0.8 的目标
+    valid_targets = [d for d in detections if d[4] &gt; 0.8]
+    
+    return valid_targets, results.render()[0]
+
+# 在线调试实时运行
+if __name__ == "__main__":
+    print("[DEBUG] 正在测试传感器数据对齐...")</code></pre>
+                    </div>
+                    <div class="p-4 bg-black/20 border-t border-white/10 flex justify-end gap-3">
+                        <button
+                            class="px-4 py-2 bg-red-600/30 border border-red-500 text-red-400 rounded text-xs hover:bg-red-500 hover:text-white"
+                            onclick="confirmDelete()">删除此算法版本</button>
+                        <button
+                            class="px-4 py-2 bg-cyan-600 border border-cyan-400 text-white rounded text-xs hover:shadow-[0_0_15px_#00FBFF]">热更新部署
+                            (Apply Change)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 删除确认浮窗 -->
+    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] hidden" id="deleteConfirm">
+        <div class="w-80 glass-panel border border-red-500/50 p-6 rounded-xl text-center">
+            <span class="iconify text-5xl text-red-500 mx-auto mb-4" data-icon="mdi:alert-rhombus"></span>
+            <h3 class="text-lg font-bold mb-2">危险操作确认</h3>
+            <p class="text-sm text-gray-400 mb-6">正在删除正在运行中的核心检测算法。该操作可能导致系统链路崩溃，请二次校验。</p>
+            <div class="flex gap-2">
+                <button class="flex-1 py-2 bg-white/10 rounded" onclick="hideConfirm()">取消</button>
+                <button class="flex-1 py-2 bg-red-600 rounded">强制删除</button>
+            </div>
+        </div>
+    </div>
+    <script src="../static/js/p3.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>光电感知算法库子系统 - 2026版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="../static/css/p1.css">
+</head>
+
+<body class="h-screen flex is-mb-ai-setting" data-gr-ext-installed="" data-new-gr-c-s-check-loaded="14.1272.0">
+    <!-- 侧边导航 -->
+    <aside class="w-64 border-r border-slate-800 flex flex-col glass-panel shrink-0">
+        <div class="p-6 flex items-center gap-3">
+            <div
+                class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <svg aria-hidden="true" class="iconify text-2xl text-white iconify--material-symbols"
+                    data-icon="material-symbols:center-focus-weak" height="1em" role="img" viewbox="0 0 24 24"
+                    width="1em" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M5 21q-.825 0-1.412-.587T3 19v-4h2v4h4v2zm10 0v-2h4v-4h2v4q0 .825-.587 1.413T19 21zM3 9V5q0-.825.588-1.412T5 3h4v2H5v4zm16 0V5h-4V3h4q.825 0 1.413.588T21 5v4zm-9.825 5.825Q8 13.65 8 12t1.175-2.825T12 8t2.825 1.175T16 12t-1.175 2.825T12 16t-2.825-1.175"
+                        fill="currentColor"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm tracking-tighter text-indigo-400">光电感知算法库子系统</h1>
+                <p class="text-[10px] text-slate-500 uppercase tracking-widest leading-tight">子系统 (PMS) v2026</p>
+            </div>
+        </div>
+        <nav class="flex-1 mt-2 px-4 space-y-1 overflow-y-auto">
+            <div class="text-[10px] font-bold text-slate-500 px-4 py-2 uppercase tracking-widest">核心业务</div>
+            <button
+                class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/50 transition-all"
+                id="nav-dashboard" onclick="switchPage('dashboard')">
+                <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                    data-icon="material-symbols:dashboard-outline" height="1em" role="img" viewbox="0 0 24 24"
+                    width="1em" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M13 9V3h8v6zM3 13V3h8v10zm10 8V11h8v10zM3 21v-6h8v6zm2-10h4V5H5zm10 8h4v-6h-4zm0-12h4V5h-4zM5 19h4v-2H5zm4-2"
+                        fill="currentColor"></path>
+                </svg>管理控制台
+            </button>
+            <button
+                class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/50 transition-all active-nav"
+                id="nav-samples" onclick="switchPage('samples')">
+                <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                    data-icon="material-symbols:perm-media-outline" height="1em" role="img" viewbox="0 0 24 24"
+                    width="1em" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M9 13h10l-3.45-4.5l-2.3 3l-1.55-2zm-6 8q-.825 0-1.412-.587T1 19V6h2v13h17v2zm4-4q-.825 0-1.412-.587T5 15V4q0-.825.588-1.412T7 2h5l2 2h7q.825 0 1.413.588T23 6v9q0 .825-.587 1.413T21 17zm0-2h14V6h-7.825l-2-2H7zm0 0V4z"
+                        fill="currentColor"></path>
+                </svg>样本库管理
+            </button>
+            <button
+                class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/50 transition-all"
+                id="nav-training" onclick="switchPage('training')">
+                <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                    data-icon="material-symbols:model-training" height="1em" role="img" viewbox="0 0 24 24" width="1em"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M5.15 18.85q-1.025-1.2-1.588-2.687T3 13q0-3.75 2.625-6.375T12 4h.2l-1.6-1.6L12 1l4 4l-4 4l-1.425-1.425L12.15 6H12Q9.1 6 7.05 8.05T5 13q0 1.275.412 2.4t1.163 2.025zM11 18.5q0-.575-.387-1.137t-.863-1.175t-.862-1.275T8.5 13.5q0-1.45 1.025-2.475T12 10t2.475 1.025T15.5 13.5q0 .75-.387 1.413t-.863 1.274t-.862 1.175T13 18.5zm0 2.5v-1.5h2V21zm7.85-2.15l-1.425-1.425q.75-.9 1.163-2.025T19 13q0-1.65-.687-3.062t-1.888-2.363L17.85 6.15q1.45 1.25 2.3 3.013T21 13q0 1.675-.562 3.163T18.85 18.85"
+                        fill="currentColor"></path>
+                </svg>模型训练舱
+            </button>
+            <div class="text-[10px] font-bold text-slate-500 px-4 py-2 mt-4 uppercase tracking-widest">算法资产</div>
+            <button
+                class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/50 transition-all"
+                id="nav-query" onclick="switchPage('query')">
+                <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                    data-icon="material-symbols:manage-search" height="1em" role="img" viewbox="0 0 24 24" width="1em"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M2 19v-2h10v2zm0-5v-2h5v2zm0-5V7h5v2zm18.6 10l-3.85-3.85q-.6.425-1.312.638T14 16q-2.075 0-3.537-1.463T9 11t1.463-3.537T14 6t3.538 1.463T19 11q0 .725-.213 1.438t-.637 1.312L22 17.6zM14 14q1.25 0 2.125-.875T17 11t-.875-2.125T14 8t-2.125.875T11 11t.875 2.125T14 14"
+                        fill="currentColor"></path>
+                </svg>算法检索
+            </button>
+            <button
+                class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/50 transition-all"
+                id="nav-register" onclick="switchPage('register')">
+                <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                    data-icon="material-symbols:app-registration" height="1em" role="img" viewbox="0 0 24 24"
+                    width="1em" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M4.588 19.413Q4 18.825 4 18t.588-1.412T6 16t1.413.588T8 18t-.587 1.413T6 20t-1.412-.587m0-6Q4 12.825 4 12t.588-1.412T6 10t1.413.588T8 12t-.587 1.413T6 14t-1.412-.587m0-6Q4 6.825 4 6t.588-1.412T6 4t1.413.588T8 6t-.587 1.413T6 8t-1.412-.587m6 0Q10 6.825 10 6t.588-1.412T12 4t1.413.588T14 6t-.587 1.413T12 8t-1.412-.587m6 0Q16 6.825 16 6t.588-1.412T18 4t1.413.588T20 6t-.587 1.413T18 8t-1.412-.587m-6 6Q10 12.825 10 12t.588-1.412T12 10t1.413.588T14 12t-.587 1.413T12 14t-1.412-.587M13 20v-3.075l5.525-5.5q.225-.225.5-.325t.55-.1q.3 0 .575.113t.5.337l.925.925q.2.225.313.5t.112.55t-.1.563t-.325.512l-5.5 5.5zm6.575-5.6l.925-.975l-.925-.925l-.95.95z"
+                        fill="currentColor"></path>
+                </svg>资产注册
+            </button>
+            <div class="text-[10px] font-bold text-slate-500 px-4 py-2 mt-4 uppercase tracking-widest">系统管理</div>
+            <button
+                class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/50 transition-all"
+                id="nav-editor" onclick="switchPage('editor')">
+                <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                    data-icon="material-symbols:developer-mode-tv" height="1em" role="img" viewbox="0 0 24 24"
+                    width="1em" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M8 21v-2H4q-.825 0-1.412-.587T2 17V5q0-.825.588-1.412T4 3h16q.825 0 1.413.588T22 5v12q0 .825-.587 1.413T20 19h-4v2zM4.8 11l2.6-2.6L6 7l-4 4l4 4l1.4-1.4zm14.4 0l-2.6 2.6L18 15l4-4l-4-4l-1.4 1.4z"
+                        fill="currentColor"></path>
+                </svg>热更新调试
+            </button>
+            <button
+                class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/50 transition-all"
+                id="nav-recycle" onclick="switchPage('recycle')">
+                <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                    data-icon="material-symbols:restore-from-trash-outline" height="1em" role="img" viewbox="0 0 24 24"
+                    width="1em" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M11 16h2v-4.15l1.6 1.55L16 12l-4-4l-4 4l1.4 1.4l1.6-1.55zm-4 5q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zM7 6v13z"
+                        fill="currentColor"></path>
+                </svg>回收站
+            </button>
+        </nav>
+        <div class="p-6 border-t border-slate-800">
+            <div class="flex items-center gap-3 px-2">
+                <div class="w-8 h-8 rounded-full bg-slate-700 border border-sky-500/50 overflow-hidden">
+                    <img alt="Admin Avatar" class="w-full h-full object-cover"
+                        src="https://modao.cc/agent-py/media/generated_images/2026-02-25/eda2bd6832b0449eb8775a3a324ba467.jpg" />
+                </div>
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-xs font-semibold truncate">管理员(Admin)</p>
+                    <p class="text-[10px] text-slate-500">2026-02-26 已登录</p>
+                </div>
+                <svg aria-hidden="true"
+                    class="iconify text-slate-500 cursor-pointer hover:text-red-400 iconify--material-symbols"
+                    data-icon="material-symbols:logout" height="1em" role="img" viewbox="0 0 24 24" width="1em"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h7v2H5v14h7v2zm11-4l-1.375-1.45l2.55-2.55H9v-2h8.175l-2.55-2.55L16 7l5 5z"
+                        fill="currentColor"></path>
+                </svg>
+            </div>
+        </div>
+    </aside>
+    <main class="flex-1 flex flex-col overflow-hidden relative">
+        <div
+            class="absolute top-0 right-0 w-[500px] h-[500px] bg-sky-500/5 filter blur-[120px] rounded-full pointer-events-none">
+        </div>
+        <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 shrink-0 glass-panel z-10">
+            <div class="flex items-center gap-4">
+                <h2 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400"
+                    id="page-title">图像/视频样本管理</h2>
+                <div class="h-4 w-[1px] bg-slate-700"></div>
+                <div class="flex gap-2">
+                    <span
+                        class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.1)]">系统健康
+                        100%</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="relative">
+                    <svg aria-hidden="true"
+                        class="iconify text-xl text-slate-400 cursor-pointer iconify--material-symbols"
+                        data-icon="material-symbols:notifications-outline" height="1em" role="img" viewbox="0 0 24 24"
+                        width="1em" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M4 19v-2h2v-7q0-2.075 1.25-3.687T10.5 4.2v-.7q0-.625.438-1.062T12 2t1.063.438T13.5 3.5v.7q2 .5 3.25 2.113T18 10v7h2v2zm8 3q-.825 0-1.412-.587T10 20h4q0 .825-.587 1.413T12 22m-4-5h8v-7q0-1.65-1.175-2.825T12 6T9.175 7.175T8 10z"
+                            fill="currentColor"></path>
+                    </svg>
+                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-500">当前时间 (CST)</p>
+                    <p class="text-xs font-mono text-sky-400" id="current-time">2026/2/26 10:28:53</p>
+                </div>
+            </div>
+        </header>
+        <!-- 内容滚动区 -->
+        <div class="flex-1 overflow-y-auto p-8 z-0" id="content-area">
+            <!-- 仪表盘 (Dashboard) -->
+            <section class="page-section space-y-6 hidden" id="page-dashboard">
+                <!-- 数据统计 -->
+                <div class="grid grid-cols-4 gap-6">
+                    <div class="p-6 glass-panel rounded-xl border-l-4 border-l-sky-500">
+                        <p class="text-slate-400 text-sm">注册算法总数</p>
+                        <div class="flex items-end gap-2 mt-2">
+                            <h3 class="text-3xl font-bold">128</h3>
+                            <span class="text-emerald-400 text-xs mb-1 flex items-center"><svg aria-hidden="true"
+                                    class="iconify iconify--material-symbols" data-icon="material-symbols:trending-up"
+                                    height="1em" role="img" viewbox="0 0 24 24" width="1em"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3.4 18L2 16.6l7.4-7.45l4 4L18.6 8H16V6h6v6h-2V9.4L13.4 16l-4-4z"
+                                        fill="currentColor"></path>
+                                </svg>+12%</span>
+                        </div>
+                    </div>
+                    <div class="p-6 glass-panel rounded-xl border-l-4 border-l-indigo-500">
+                        <p class="text-slate-400 text-sm">今日调用次数</p>
+                        <div class="flex items-end gap-2 mt-2">
+                            <h3 class="text-3xl font-bold">14,209</h3>
+                            <span class="text-emerald-400 text-xs mb-1 flex items-center"><svg aria-hidden="true"
+                                    class="iconify iconify--material-symbols" data-icon="material-symbols:trending-up"
+                                    height="1em" role="img" viewbox="0 0 24 24" width="1em"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3.4 18L2 16.6l7.4-7.45l4 4L18.6 8H16V6h6v6h-2V9.4L13.4 16l-4-4z"
+                                        fill="currentColor"></path>
+                                </svg>+5.4%</span>
+                        </div>
+                    </div>
+                    <div class="p-6 glass-panel rounded-xl border-l-4 border-l-purple-500">
+                        <p class="text-slate-400 text-sm">正在运行实验</p>
+                        <div class="flex items-end gap-2 mt-2">
+                            <h3 class="text-3xl font-bold">42</h3>
+                            <span class="text-amber-400 text-xs mb-1 flex items-center">活跃中</span>
+                        </div>
+                    </div>
+                    <div class="p-6 glass-panel rounded-xl border-l-4 border-l-rose-500">
+                        <p class="text-slate-400 text-sm">待处理告警</p>
+                        <div class="flex items-end gap-2 mt-2">
+                            <h3 class="text-3xl font-bold">3</h3>
+                            <span class="text-rose-400 text-xs mb-1 flex items-center">需要关注</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-6">
+                    <div class="col-span-2 glass-panel p-6 rounded-xl h-80">
+                        <h4 class="font-semibold mb-4 flex items-center gap-2 italic">
+                            <svg aria-hidden="true" class="iconify text-sky-400 iconify--material-symbols"
+                                data-icon="material-symbols:show-chart" height="1em" role="img" viewbox="0 0 24 24"
+                                width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3.5 18.5L2 17l7.5-7.5l4 4l7.1-8L22 6.9l-8.5 9.6l-4-4z" fill="currentColor">
+                                </path>
+                            </svg> 平台资源负载趋势
+                        </h4>
+                        <div _echarts_instance_="ec_1772072913356" class="w-full h-64" id="chart-main"
+                            style="user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); position: relative;">
+                            <div
+                                style="position: relative; width: 658px; height: 256px; padding: 0px; margin: 0px; border-width: 0px;">
+                                <canvas data-zr-dom-id="zr_0" height="320"
+                                    style="position: absolute; left: 0px; top: 0px; width: 658px; height: 256px; user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); padding: 0px; margin: 0px; border-width: 0px;"
+                                    width="822"></canvas></div>
+                            <div class=""></div>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl h-80">
+                        <h4 class="font-semibold mb-4 flex items-center gap-2">
+                            <svg aria-hidden="true" class="iconify text-sky-400 iconify--material-symbols"
+                                data-icon="material-symbols:category-outline" height="1em" role="img"
+                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M6.5 11L12 2l5.5 9zm11 11q-1.875 0-3.187-1.312T13 17.5t1.313-3.187T17.5 13t3.188 1.313T22 17.5t-1.312 3.188T17.5 22M3 21.5v-8h8v8zM17.5 20q1.05 0 1.775-.725T20 17.5t-.725-1.775T17.5 15t-1.775.725T15 17.5t.725 1.775T17.5 20M5 19.5h4v-4H5zM10.05 9h3.9L12 5.85zm7.45 8.5"
+                                    fill="currentColor"></path>
+                            </svg> 算法分类占比
+                        </h4>
+                        <div _echarts_instance_="ec_1772072913357" class="w-full h-64" id="chart-pie"
+                            style="user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); position: relative;">
+                            <div
+                                style="position: relative; width: 292px; height: 256px; padding: 0px; margin: 0px; border-width: 0px;">
+                                <canvas data-zr-dom-id="zr_0" height="320"
+                                    style="position: absolute; left: 0px; top: 0px; width: 292px; height: 256px; user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); padding: 0px; margin: 0px; border-width: 0px;"
+                                    width="365"></canvas></div>
+                            <div class=""></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 最近操作记录 -->
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
+                        <h4 class="font-semibold">最近审计日志 (Audit Trace)</h4>
+                        <button class="text-xs text-sky-400 hover:underline">查看全部</button>
+                    </div>
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-800/50 text-slate-400 uppercase text-[10px] tracking-widest">
+                            <tr>
+                                <th class="px-6 py-3">时间</th>
+                                <th class="px-6 py-3">操作人</th>
+                                <th class="px-6 py-3">事件类型</th>
+                                <th class="px-6 py-3">算法/对象</th>
+                                <th class="px-6 py-3">结果</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">
+                            <tr class="hover:bg-slate-700/30 transition-colors">
+                                <td class="px-6 py-4 font-mono text-xs">2026-02-25 09:45:12</td>
+                                <td class="px-6 py-4">Admin</td>
+                                <td class="px-6 py-4"><span
+                                        class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">算法修改</span></td>
+                                <td class="px-6 py-4">YOLOv8-Custom-Core</td>
+                                <td class="px-6 py-4 text-emerald-400">成功 (ID: d92f...)</td>
+                            </tr>
+                            <tr class="hover:bg-slate-700/30 transition-colors">
+                                <td class="px-6 py-4 font-mono text-xs">2026-02-25 09:12:05</td>
+                                <td class="px-6 py-4">Engineer_Li</td>
+                                <td class="px-6 py-4"><span
+                                        class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400">注册申请</span></td>
+                                <td class="px-6 py-4">BERT-Sentiment-Analyzer</td>
+                                <td class="px-6 py-4 text-sky-400">兼容性测试中</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <!-- 图像/视频样本管理 (Samples) -->
+            <section class="page-section space-y-6" id="page-samples">
+                <!-- MinIO 状态与上传控制 -->
+                <div class="grid grid-cols-3 gap-6">
+                    <div
+                        class="col-span-2 glass-panel p-6 rounded-xl flex items-center justify-between border-l-4 border-l-sky-500">
+                        <div class="flex items-center gap-6">
+                            <div
+                                class="w-16 h-16 bg-sky-500/10 rounded-full flex items-center justify-center text-sky-400 border border-sky-500/20">
+                                <span class="iconify text-3xl" data-icon="material-symbols:cloud-upload-outline"></span>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-lg text-white">MinIO 对象存储集群</h4>
+                                <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest italic">Cluster Health:
+                                    Excellent | Nodes: 4/4</p>
+                                <div class="flex gap-4 mt-2">
+                                    <span class="text-[10px] text-slate-400 flex items-center gap-1"><span
+                                            class="w-2 h-2 rounded-full bg-emerald-500"></span> 存储节点可用</span>
+                                    <span class="text-[10px] text-slate-400 flex items-center gap-1"><span
+                                            class="w-2 h-2 rounded-full bg-sky-500"></span> 已用容量: 4.2TB / 20TB</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            class="bg-sky-600 hover:bg-sky-500 text-white px-8 py-3 rounded-lg font-bold shadow-lg shadow-sky-500/20 transition-all flex items-center gap-2"
+                            onclick="uploadSample()">
+                            <svg aria-hidden="true" class="iconify text-xl iconify--material-symbols"
+                                data-icon="material-symbols:add-a-photo" height="1em" role="img" viewbox="0 0 24 24"
+                                width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M19 7V5h-2V3h2V1h2v2h2v2h-2v2zm-8 10.5q1.875 0 3.188-1.312T15.5 13t-1.312-3.187T11 8.5T7.813 9.813T6.5 13t1.313 3.188T11 17.5m0-2q-1.05 0-1.775-.725T8.5 13t.725-1.775T11 10.5t1.775.725T13.5 13t-.725 1.775T11 15.5M3 21q-.825 0-1.412-.587T1 19V7q0-.825.588-1.412T3 5h3.15L8 3h7v4h2v2h4v10q0 .825-.587 1.413T19 21z"
+                                    fill="currentColor"></path>
+                            </svg> 上传新样本
+                        </button>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl border-l-4 border-l-indigo-500">
+                        <h4 class="font-bold text-sm text-indigo-400 mb-4 flex items-center gap-2 italic">
+                            <span class="iconify" data-icon="material-symbols:vector-library"></span> 向量检索增强 (pgvector)
+                        </h4>
+                        <div class="relative mb-3">
+                            <input
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 pl-3 pr-10 text-xs outline-none focus:border-indigo-500"
+                                placeholder="查找特征相似的图像..." type="text" />
+                            <svg aria-hidden="true"
+                                class="iconify absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 cursor-pointer hover:text-indigo-400 iconify--material-symbols"
+                                data-icon="material-symbols:search" height="1em" onclick="toggleVectorSearch()"
+                                role="img" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="m19.6 21l-6.3-6.3q-.75.6-1.725.95T9.5 16q-2.725 0-4.612-1.888T3 9.5t1.888-4.612T9.5 3t4.613 1.888T16 9.5q0 1.1-.35 2.075T14.7 13.3l6.3 6.3zM9.5 14q1.875 0 3.188-1.312T14 9.5t-1.312-3.187T9.5 5T6.313 6.313T5 9.5t1.313 3.188T9.5 14"
+                                    fill="currentColor"></path>
+                            </svg>
+                        </div>
+                        <p class="text-[10px] text-slate-500 italic leading-relaxed">基于算法自动提取的 512D
+                            特征向量进行语义搜索，支持跨波段相似性匹配。</p>
+                    </div>
+                </div>
+                <!-- 样本列表与筛选 -->
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <div class="p-4 border-b border-slate-800 bg-slate-900/30 flex justify-between items-center">
+                        <div class="flex gap-4">
+                            <select
+                                class="bg-slate-800 border-none text-xs rounded px-3 py-1.5 text-slate-300 outline-none">
+                                <option>所有任务类型</option>
+                                <option>目标检测</option>
+                                <option>图像分类</option>
+                            </select>
+                            <select
+                                class="bg-slate-800 border-none text-xs rounded px-3 py-1.5 text-slate-300 outline-none">
+                                <option>传感器波段</option>
+                                <option>红外 (LWIR)</option>
+                                <option>可见光 (RGB)</option>
+                            </select>
+                        </div>
+                        <div class="text-[10px] text-slate-500 italic">当前展示 1,280/45,000 个样本块</div>
+                    </div>
+                    <div class="grid grid-cols-5 gap-4 p-6">
+                        <!-- Sample Card 1 (Image) -->
+                        <div
+                            class="group relative aspect-square bg-slate-800 rounded-lg overflow-hidden border border-slate-700 hover:border-sky-500/50 transition-all">
+                            <img class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                                src="https://modao.cc/agent-py/media/user_assets/2026-02-26/8506f7de2b334fb3a38996e24c2dd9f2.jpg" />
+                            <div
+                                class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 translate-y-2 group-hover:translate-y-0 transition-transform">
+                                <p class="text-[10px] font-bold text-white truncate">DRONE_DETECT_001.jpg</p>
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-[8px] text-sky-400">1920x1080 | RGB</span>
+                                    <span class="text-[8px] text-slate-400">MD5: a82c...</span>
+                                </div>
+                            </div>
+                            <div
+                                class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button class="p-1.5 bg-slate-900/80 rounded hover:bg-sky-500 text-white"><svg
+                                        aria-hidden="true" class="iconify iconify--material-symbols"
+                                        data-icon="material-symbols:edit" height="1em" role="img" viewbox="0 0 24 24"
+                                        width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M3 21v-4.25L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.438.65T21 6.4q0 .4-.137.763t-.438.662L7.25 21zM17.6 7.8L19 6.4L17.6 5l-1.4 1.4z"
+                                            fill="currentColor"></path>
+                                    </svg></button>
+                                <button class="p-1.5 bg-slate-900/80 rounded hover:bg-rose-500 text-white"><svg
+                                        aria-hidden="true" class="iconify iconify--material-symbols"
+                                        data-icon="material-symbols:delete" height="1em" role="img" viewbox="0 0 24 24"
+                                        width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zm2-4h2V8H9zm4 0h2V8h-2z"
+                                            fill="currentColor"></path>
+                                    </svg></button>
+                            </div>
+                            <span
+                                class="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] bg-sky-500 text-white italic">标注完成</span>
+                        </div>
+                        <!-- Sample Card 2 (Video) -->
+                        <div
+                            class="group relative aspect-square bg-slate-800 rounded-lg overflow-hidden border border-slate-700 hover:border-sky-500/50 transition-all">
+                            <div class="w-full h-full flex items-center justify-center bg-slate-900">
+                                <svg aria-hidden="true"
+                                    class="iconify text-4xl text-slate-700 group-hover:text-indigo-500 iconify--material-symbols"
+                                    data-icon="material-symbols:video-library-outline" height="1em" role="img"
+                                    viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="m11.5 14.5l7-4.5l-7-4.5zM8 18q-.825 0-1.412-.587T6 16V4q0-.825.588-1.412T8 2h12q.825 0 1.413.588T22 4v12q0 .825-.587 1.413T20 18zm0-2h12V4H8zm-4 6q-.825 0-1.412-.587T2 20V6h2v14h14v2zM8 4v12z"
+                                        fill="currentColor"></path>
+                                </svg>
+                            </div>
+                            <div
+                                class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 translate-y-2 group-hover:translate-y-0 transition-transform">
+                                <p class="text-[10px] font-bold text-white truncate">INFRARED_TRACK_V05.mp4</p>
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-[8px] text-indigo-400">30fps | LWIR</span>
+                                    <span class="text-[8px] text-slate-400">Time: 12:45</span>
+                                </div>
+                            </div>
+                            <span
+                                class="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] bg-slate-600 text-slate-300 italic">待切帧</span>
+                        </div>
+                        <!-- Placeholder for more -->
+                        <div
+                            class="aspect-square border border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-700 italic text-[10px]">
+                            批量导入更多...</div>
+                    </div>
+                </div>
+            </section>
+            <!-- 模型训练 (Training) -->
+            <section class="page-section space-y-6 hidden" id="page-training">
+                <div class="grid grid-cols-3 gap-6">
+                    <!-- 参数配置面板 -->
+                    <div class="col-span-1 glass-panel p-6 rounded-xl flex flex-col border-t-2 border-t-sky-500">
+                        <h4 class="font-bold flex items-center gap-2 mb-6">
+                            <svg aria-hidden="true" class="iconify text-sky-400 text-xl iconify--material-symbols"
+                                data-icon="material-symbols:settings-input-component" height="1em" role="img"
+                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M3 23v-4.2q-.875-.3-1.437-1.062T1 16v-2h6v2q0 .975-.562 1.738T5 18.8V23zm8 0v-4.2q-.875-.3-1.437-1.062T9 16v-2h6v2q0 .975-.562 1.738T13 18.8V23zm8 0v-4.2q-.875-.3-1.437-1.062T17 16v-2h6v2q0 .975-.562 1.738T21 18.8V23zM1 12V6h2V2q0-.425.288-.712T4 1t.713.288T5 2v4h2v6zm8 0V6h2V2q0-.425.288-.712T12 1t.713.288T13 2v4h2v6zm8 0V6h2V2q0-.425.288-.712T20 1t.713.288T21 2v4h2v6z"
+                                    fill="currentColor"></path>
+                            </svg> 训练超参配置
+                        </h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label
+                                    class="block text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">基础算法模型
+                                    (Base Model)</label>
+                                <select
+                                    class="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2 px-3 text-xs outline-none focus:border-sky-500">
+                                    <option>YOLOv8-S (Pre-trained)</option>
+                                    <option>ResNet-101 (Baseline)</option>
+                                    <option>Light-Weight-Transformer</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">学习率 (LR)</label>
+                                    <input
+                                        class="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2 px-3 text-xs outline-none focus:border-sky-500"
+                                        type="text" value="0.001" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">批次大小 (Batch Size)</label>
+                                    <input
+                                        class="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2 px-3 text-xs outline-none focus:border-sky-500"
+                                        type="number" value="32" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-slate-500 mb-1">训练轮数 (Epochs)</label>
+                                <input
+                                    class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                                    type="range" />
+                                <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                                    <span>10</span><span>50</span><span>100</span><span>200</span></div>
+                            </div>
+                            <div class="py-4 border-t border-slate-800">
+                                <label
+                                    class="block text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold">资源分配</label>
+                                <div class="flex gap-2">
+                                    <button
+                                        class="flex-1 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-[10px] text-slate-400 hover:border-sky-500">A100
+                                        x 1</button>
+                                    <button
+                                        class="flex-1 py-1.5 rounded-lg border border-sky-500 bg-sky-500/10 text-[10px] text-sky-400">RTX
+                                        4090 x 2</button>
+                                </div>
+                            </div>
+                            <button
+                                class="w-full bg-sky-600 hover:bg-sky-500 text-white py-3 rounded-lg font-bold shadow-lg shadow-sky-500/20 transition-all flex items-center justify-center gap-2 mt-4"
+                                onclick="startTraining()">
+                                <svg aria-hidden="true" class="iconify text-xl iconify--material-symbols"
+                                    data-icon="material-symbols:play-arrow" height="1em" role="img" viewbox="0 0 24 24"
+                                    width="1em" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 19V5l11 7z" fill="currentColor"></path>
+                                </svg> 开始自学习任务
+                            </button>
+                        </div>
+                    </div>
+                    <!-- 训练可视化面板 -->
+                    <div class="col-span-2 space-y-6">
+                        <div class="glass-panel p-6 rounded-xl relative overflow-hidden">
+                            <div class="flex justify-between items-center mb-6">
+                                <h4 class="font-bold flex items-center gap-2">
+                                    <svg aria-hidden="true"
+                                        class="iconify text-emerald-400 text-xl iconify--material-symbols"
+                                        data-icon="material-symbols:monitoring" height="1em" role="img"
+                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M3 21v-2l2-2v4zm4 0v-6l2-2v8zm4 0v-8l2 2.025V21zm4 0v-5.975l2-2V21zm4 0V11l2-2v12zM3 15.825V13l7-7l4 4l7-7v2.825l-7 7l-4-4z"
+                                            fill="currentColor"></path>
+                                    </svg> 实战训练监控仪表盘
+                                </h4>
+                                <div class="flex gap-3">
+                                    <span
+                                        class="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20"><span
+                                            class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        模型收敛中...</span>
+                                </div>
+                            </div>
+                            <div class="h-64 flex items-end gap-1 px-4 mb-4">
+                                <!-- Fake Loss Chart with DIVs -->
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[60%] hover:bg-emerald-500 transition-all group relative">
+                                    <div
+                                        class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] hidden group-hover:block italic">
+                                        Loss: 0.12</div>
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[55%] hover:bg-emerald-500 transition-all">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[52%] hover:bg-emerald-500 transition-all border-b-2 border-b-sky-500">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[48%] hover:bg-emerald-500 transition-all">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[45%] hover:bg-emerald-500 transition-all">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[42%] hover:bg-emerald-500 transition-all border-b-2 border-b-sky-500">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[38%] hover:bg-emerald-500 transition-all">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/20 rounded-t h-[35%] hover:bg-emerald-500 transition-all">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/30 rounded-t h-[33%] hover:bg-emerald-500 transition-all">
+                                </div>
+                                <div
+                                    class="flex-1 bg-emerald-500/40 rounded-t h-[30%] hover:bg-emerald-500 transition-all animate-pulse">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-4 gap-4">
+                                <div class="p-3 bg-slate-900/50 rounded-lg border border-slate-800 text-center">
+                                    <p class="text-[10px] text-slate-500 uppercase tracking-tighter">当前准确率(mAP)</p>
+                                    <p class="text-xl font-bold text-emerald-400">88.4%</p>
+                                </div>
+                                <div class="p-3 bg-slate-900/50 rounded-lg border border-slate-800 text-center">
+                                    <p class="text-[10px] text-slate-500 uppercase tracking-tighter">剩余时间/估计</p>
+                                    <p class="text-xl font-bold text-sky-400">02h 45m</p>
+                                </div>
+                                <div class="p-3 bg-slate-900/50 rounded-lg border border-slate-800 text-center">
+                                    <p class="text-[10px] text-slate-500 uppercase tracking-tighter">当前 Loss 值</p>
+                                    <p class="text-xl font-bold text-indigo-400">0.034</p>
+                                </div>
+                                <div class="p-3 bg-slate-900/50 rounded-lg border border-slate-800 text-center">
+                                    <p class="text-[10px] text-slate-500 uppercase tracking-tighter">训练迭代进度</p>
+                                    <p class="text-xl font-bold text-purple-400">122/200</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel p-6 rounded-xl border border-dashed border-slate-700">
+                            <div class="flex justify-between items-center mb-4">
+                                <h5 class="text-sm font-bold text-slate-300">数据集加载池 (Snapshot)</h5>
+                                <button class="text-xs text-sky-400 hover:underline">管理快照</button>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1 p-3 bg-slate-800/50 rounded-lg flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <svg aria-hidden="true"
+                                            class="iconify text-2xl text-slate-500 iconify--material-symbols"
+                                            data-icon="material-symbols:database" height="1em" role="img"
+                                            viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                            <path
+                                                d="M18.375 9.825Q21 8.65 21 7t-2.625-2.825T12 3T5.625 4.175T3 7t2.625 2.825T12 11t6.375-1.175m-3.812 3.463q1.537-.213 2.962-.688t2.45-1.237T21 9.5V12q0 1.1-1.025 1.863t-2.45 1.237t-2.962.688T12 16t-2.562-.213t-2.963-.687t-2.45-1.237T3 12V9.5q0 1.1 1.025 1.863t2.45 1.237t2.963.688T12 13.5t2.563-.213m0 5q1.537-.212 2.962-.687t2.45-1.237T21 14.5V17q0 1.1-1.025 1.863t-2.45 1.237t-2.962.688T12 21t-2.562-.213t-2.963-.687t-2.45-1.237T3 17v-2.5q0 1.1 1.025 1.863t2.45 1.237t2.963.688T12 18.5t2.563-.213"
+                                                fill="currentColor"></path>
+                                        </svg>
+                                        <div>
+                                            <p class="text-[11px] font-bold">Infrared-Ships-Fixed-v2</p>
+                                            <p class="text-[9px] text-slate-500 tracking-tighter italic">Count: 12,000 |
+                                                Created: 2026-02-24</p>
+                                        </div>
+                                    </div>
+                                    <svg aria-hidden="true" class="iconify text-emerald-500 iconify--material-symbols"
+                                        data-icon="material-symbols:check-circle" height="1em" role="img"
+                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="m10.6 16.6l7.05-7.05l-1.4-1.4l-5.65 5.65l-2.85-2.85l-1.4 1.4zM12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22"
+                                            fill="currentColor"></path>
+                                    </svg>
+                                </div>
+                                <div
+                                    class="flex-1 p-3 bg-slate-800/10 rounded-lg border border-dashed border-slate-700 flex items-center justify-center opacity-50">
+                                    <span class="text-[10px] text-slate-600">+ 添加快照集进行联合训练</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <!-- 算法查询列表 (Query) -->
+            <section class="page-section space-y-6 hidden" id="page-query">
+                <!-- 搜索与筛选 -->
+                <div class="glass-panel p-6 rounded-xl flex flex-wrap gap-4 items-end">
+                    <div class="flex-1 min-w-[300px]">
+                        <label class="block text-xs text-slate-500 mb-2">关键词搜索 (算法名称、描述、UUID)</label>
+                        <div class="relative">
+                            <svg aria-hidden="true"
+                                class="iconify absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 iconify--material-symbols"
+                                data-icon="material-symbols:search" height="1em" role="img" viewbox="0 0 24 24"
+                                width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="m19.6 21l-6.3-6.3q-.75.6-1.725.95T9.5 16q-2.725 0-4.612-1.888T3 9.5t1.888-4.612T9.5 3t4.613 1.888T16 9.5q0 1.1-.35 2.075T14.7 13.3l6.3 6.3zM9.5 14q1.875 0 3.188-1.312T14 9.5t-1.312-3.187T9.5 5T6.313 6.313T5 9.5t1.313 3.188T9.5 14"
+                                    fill="currentColor"></path>
+                            </svg>
+                            <input
+                                class="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-sky-500 outline-none"
+                                placeholder="输入名称或完整UUID进行查找..." type="text" />
+                        </div>
+                    </div>
+                    <div class="w-48">
+                        <label class="block text-xs text-slate-500 mb-2">算法类型</label>
+                        <select
+                            class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 focus:ring-2 focus:ring-sky-500 outline-none">
+                            <option>全部类型</option>
+                            <option>传统方法</option>
+                            <option>学习方法</option>
+                        </select>
+                    </div>
+                    <div class="w-40">
+                        <label class="block text-xs text-slate-500 mb-2">检索精度</label>
+                        <div class="flex border border-slate-700 rounded-lg p-1 bg-slate-900/50">
+                            <button class="flex-1 py-1 rounded text-xs bg-sky-500 text-white">模糊</button>
+                            <button class="flex-1 py-1 rounded text-xs text-slate-400">精确</button>
+                        </div>
+                    </div>
+                    <button
+                        class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded-lg transition-all font-semibold flex items-center gap-2">
+                        <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                            data-icon="material-symbols:filter-alt" height="1em" role="img" viewbox="0 0 24 24"
+                            width="1em" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M11 20q-.425 0-.712-.288T10 19v-6L4.2 5.6q-.375-.5-.112-1.05T5 4h14q.65 0 .913.55T19.8 5.6L14 13v6q0 .425-.288.713T13 20z"
+                                fill="currentColor"></path>
+                        </svg> 执行筛选
+                    </button>
+                    <button
+                        class="border border-sky-500/50 text-sky-400 hover:bg-sky-500/10 px-4 py-2 rounded-lg transition-all text-sm flex items-center gap-2 italic"
+                        onclick="openCompare()">
+                        <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                            data-icon="material-symbols:compare-arrows" height="1em" role="img" viewbox="0 0 24 24"
+                            width="1em" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="m8 20l-1.4-1.425L9.175 16H2v-2h7.175L6.6 11.425L8 10l5 5zm8-6l-5-5l5-5l1.4 1.425L14.825 8H22v2h-7.175l2.575 2.575z"
+                                fill="currentColor"></path>
+                        </svg> 对比中心(2)
+                    </button>
+                </div>
+                <!-- 算法列表 -->
+                <div class="grid grid-cols-1 gap-4">
+                    <!-- Item 1 -->
+                    <div class="glass-panel rounded-xl p-5 group hover:border-sky-500/50 transition-all">
+                        <div class="flex justify-between items-start">
+                            <div class="flex gap-4">
+                                <div
+                                    class="w-16 h-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
+                                    <svg aria-hidden="true" class="iconify text-3xl iconify--material-symbols"
+                                        data-icon="material-symbols:model-training" height="1em" role="img"
+                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M5.15 18.85q-1.025-1.2-1.588-2.687T3 13q0-3.75 2.625-6.375T12 4h.2l-1.6-1.6L12 1l4 4l-4 4l-1.425-1.425L12.15 6H12Q9.1 6 7.05 8.05T5 13q0 1.275.412 2.4t1.163 2.025zM11 18.5q0-.575-.387-1.137t-.863-1.175t-.862-1.275T8.5 13.5q0-1.45 1.025-2.475T12 10t2.475 1.025T15.5 13.5q0 .75-.387 1.413t-.863 1.274t-.862 1.175T13 18.5zm0 2.5v-1.5h2V21zm7.85-2.15l-1.425-1.425q.75-.9 1.163-2.025T19 13q0-1.65-.687-3.062t-1.888-2.363L17.85 6.15q1.45 1.25 2.3 3.013T21 13q0 1.675-.562 3.163T18.85 18.85"
+                                            fill="currentColor"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-3">
+                                        <h5 class="text-lg font-bold">ResNet50-ObjectDetection</h5>
+                                        <span
+                                            class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">v2.4.1</span>
+                                        <span
+                                            class="px-2 py-0.5 rounded text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20">学习方法</span>
+                                        <span
+                                            class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">运行中</span>
+                                    </div>
+                                    <p class="text-sm text-slate-500 mt-1 max-w-2xl">
+                                        高性能目标检测核心算法，适用于复杂背景下的多目标识别，已在生产环境运行。开发者：AI-Team-Alpha</p>
+                                    <div class="flex items-center gap-4 mt-3 text-[11px] text-slate-500 italic">
+                                        <span class="flex items-center gap-1"><svg aria-hidden="true"
+                                                class="iconify iconify--material-symbols"
+                                                data-icon="material-symbols:id-card-outline" height="1em" role="img"
+                                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                                <path
+                                                    d="M14 13h5v-2h-5zm0-3h5V8h-5zm-9 6h8v-.55q0-1.125-1.1-1.787T9 13t-2.9.663T5 15.45zm5.413-4.587Q11 10.825 11 10t-.587-1.412T9 8t-1.412.588T7 10t.588 1.413T9 12t1.413-.587M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v12q0 .825-.587 1.413T20 20zm0-2h16V6H4zm0 0V6z"
+                                                    fill="currentColor"></path>
+                                            </svg> UUID: 550e8400-e29b-41d4-a716-446655440000</span>
+                                        <span class="flex items-center gap-1"><svg aria-hidden="true"
+                                                class="iconify iconify--material-symbols"
+                                                data-icon="material-symbols:update" height="1em" role="img"
+                                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                                <path
+                                                    d="M12 21q-1.875 0-3.512-.712t-2.85-1.925t-1.925-2.85T3 12t.713-3.512t1.924-2.85t2.85-1.925T12 3q2.05 0 3.888.875T19 6.35V4h2v6h-6V8h2.75q-1.025-1.4-2.525-2.2T12 5Q9.075 5 7.038 7.038T5 12t2.038 4.963T12 19q2.625 0 4.588-1.7T18.9 13h2.05q-.375 3.425-2.937 5.713T12 21m2.8-4.8L11 12.4V7h2v4.6l3.2 3.2z"
+                                                    fill="currentColor"></path>
+                                            </svg> 更新于: 2026-02-20</span>
+                                        <span class="flex items-center gap-1 text-sky-400"><svg aria-hidden="true"
+                                                class="iconify iconify--material-symbols"
+                                                data-icon="material-symbols:star" height="1em" role="img"
+                                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                                <path
+                                                    d="m5.825 21l1.625-7.025L2 9.25l7.2-.625L12 2l2.8 6.625l7.2.625l-5.45 4.725L18.175 21L12 17.275z"
+                                                    fill="currentColor"></path>
+                                            </svg> 收藏(128)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <button
+                                    class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs transition-colors"
+                                    onclick="showDetail()">查看详情</button>
+                                <button
+                                    class="px-4 py-1.5 rounded-lg bg-sky-900/30 text-sky-400 hover:bg-sky-900/50 border border-sky-700/50 text-xs transition-colors"
+                                    onclick="switchPage('editor')">在线修改</button>
+                                <button
+                                    class="px-4 py-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 text-xs transition-colors"
+                                    onclick="showDeleteConfirm('ResNet50-ObjectDetection')">删除</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Item 2 -->
+                    <div class="glass-panel rounded-xl p-5 group hover:border-sky-500/50 transition-all opacity-80">
+                        <div class="flex justify-between items-start">
+                            <div class="flex gap-4">
+                                <div
+                                    class="w-16 h-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                                    <svg aria-hidden="true" class="iconify text-3xl iconify--material-symbols"
+                                        data-icon="material-symbols:analytics-outline" height="1em" role="img"
+                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M7 17h2v-5H7zm8 0h2V7h-2zm-4 0h2v-3h-2zm0-5h2v-2h-2zm-6 9q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-2h14V5H5zM5 5v14z"
+                                            fill="currentColor"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-3">
+                                        <h5 class="text-lg font-bold">K-Means-Cluster-Standard</h5>
+                                        <span
+                                            class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">v1.2.0</span>
+                                        <span
+                                            class="px-2 py-0.5 rounded text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">传统方法</span>
+                                        <span
+                                            class="px-2 py-0.5 rounded text-[10px] bg-slate-700 text-slate-400 border border-slate-600">测试中</span>
+                                    </div>
+                                    <p class="text-sm text-slate-500 mt-1 max-w-2xl">基础聚类方法，用于大数据量下的初步分类，支持向量化加速。</p>
+                                    <div class="flex items-center gap-4 mt-3 text-[11px] text-slate-500 italic">
+                                        <span class="flex items-center gap-1"><svg aria-hidden="true"
+                                                class="iconify iconify--material-symbols"
+                                                data-icon="material-symbols:id-card-outline" height="1em" role="img"
+                                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                                <path
+                                                    d="M14 13h5v-2h-5zm0-3h5V8h-5zm-9 6h8v-.55q0-1.125-1.1-1.787T9 13t-2.9.663T5 15.45zm5.413-4.587Q11 10.825 11 10t-.587-1.412T9 8t-1.412.588T7 10t.588 1.413T9 12t1.413-.587M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v12q0 .825-.587 1.413T20 20zm0-2h16V6H4zm0 0V6z"
+                                                    fill="currentColor"></path>
+                                            </svg> UUID: 82df31-9f...</span>
+                                        <span class="flex items-center gap-1"><svg aria-hidden="true"
+                                                class="iconify iconify--material-symbols"
+                                                data-icon="material-symbols:update" height="1em" role="img"
+                                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                                <path
+                                                    d="M12 21q-1.875 0-3.512-.712t-2.85-1.925t-1.925-2.85T3 12t.713-3.512t1.924-2.85t2.85-1.925T12 3q2.05 0 3.888.875T19 6.35V4h2v6h-6V8h2.75q-1.025-1.4-2.525-2.2T12 5Q9.075 5 7.038 7.038T5 12t2.038 4.963T12 19q2.625 0 4.588-1.7T18.9 13h2.05q-.375 3.425-2.937 5.713T12 21m2.8-4.8L11 12.4V7h2v4.6l3.2 3.2z"
+                                                    fill="currentColor"></path>
+                                            </svg> 更新于: 2026-02-15</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <button
+                                    class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs transition-colors">查看详情</button>
+                                <button
+                                    class="px-4 py-1.5 rounded-lg bg-sky-900/30 text-sky-400 hover:bg-sky-900/50 border border-sky-700/50 text-xs transition-colors">在线修改</button>
+                                <button
+                                    class="px-4 py-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 text-xs transition-colors"
+                                    onclick="showDeleteConfirm('K-Means-Cluster-Standard')">删除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <!-- 算法注册 (Register) -->
+            <section class="page-section max-w-5xl mx-auto hidden" id="page-register">
+                <div class="space-y-6">
+                    <!-- 第一步：基础信息 -->
+                    <div class="glass-panel rounded-2xl p-8 neon-border">
+                        <div class="flex items-center gap-4 mb-8">
+                            <span
+                                class="w-10 h-10 rounded-full bg-sky-500 flex items-center justify-center font-bold">1</span>
+                            <div>
+                                <h3 class="text-xl font-bold">基础信息录入</h3>
+                                <p class="text-xs text-slate-500 mt-1">请填写算法元数据，标 * 为必填项</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-x-12 gap-y-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-300 mb-2">算法名称 *</label>
+                                <input
+                                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
+                                    placeholder="限制32字符以内" type="text" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-300 mb-2">版本号 *</label>
+                                <input
+                                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
+                                    placeholder="语义化版本，如 v1.0.0" type="text" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-300 mb-2">算法类型 *</label>
+                                <select
+                                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500">
+                                    <option>学习方法 (Deep Learning)</option>
+                                    <option>传统方法 (Machine Learning)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-300 mb-2">标签分类 (任务名) *</label>
+                                <input
+                                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
+                                    placeholder="如：目标检测、自然语言处理" type="text" />
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-sm font-semibold text-slate-300 mb-2">算法描述</label>
+                                <textarea
+                                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
+                                    placeholder="算法核心功能及适用场景描述" rows="3"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-300 mb-2">算法权限</label>
+                                <div class="flex gap-4">
+                                    <label class="flex items-center gap-2 cursor-pointer"><input checked="" name="auth"
+                                            type="radio" /> 公开</label>
+                                    <label class="flex items-center gap-2 cursor-pointer"><input name="auth"
+                                            type="radio" /> 共享</label>
+                                    <label class="flex items-center gap-2 cursor-pointer"><input name="auth"
+                                            type="radio" /> 私有</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 第二步：镜像与测试 -->
+                    <div class="glass-panel rounded-2xl p-8">
+                        <div class="flex items-center gap-4 mb-8">
+                            <span
+                                class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold">2</span>
+                            <div>
+                                <h3 class="text-xl font-bold">镜像导入与兼容性测试</h3>
+                                <p class="text-xs text-slate-500 mt-1">校验容器镜像合法性并执行自动化压力测试</p>
+                            </div>
+                        </div>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-300 mb-2 font-mono">镜像路径 (Image
+                                    Registry Path) *</label>
+                                <div class="flex gap-3">
+                                    <input
+                                        class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sky-400 outline-none"
+                                        type="text" value="registry.internal.ai/v2/models/yolov8_base:latest" />
+                                    <button
+                                        class="bg-indigo-600 px-6 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-500 transition-colors">
+                                        <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                                            data-icon="material-symbols:cloud-download-outline" height="1em" role="img"
+                                            viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                            <path
+                                                d="M6.5 20q-2.275 0-3.887-1.575T1 14.575q0-1.95 1.175-3.475T5.25 9.15q.425-1.8 2.125-3.425T11 4.1q.825 0 1.413.588T13 6.1v6.05l1.6-1.55L16 12l-4 4l-4-4l1.4-1.4l1.6 1.55V6.1q-1.9.35-2.95 1.838T7 11h-.5q-1.45 0-2.475 1.025T3 14.5t1.025 2.475T6.5 18h12q1.05 0 1.775-.725T21 15.5t-.725-1.775T18.5 13H17v-2q0-1.2-.55-2.238T15 7V4.675q1.85.875 2.925 2.588T19 11q1.725.2 2.863 1.488T23 15.5q0 1.875-1.312 3.188T18.5 20zm5.5-8.95"
+                                                fill="currentColor"></path>
+                                        </svg> 校验镜像
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-6 rounded-xl bg-slate-900/80 border border-slate-800">
+                                <div class="flex justify-between items-center mb-6">
+                                    <h5 class="text-sm font-bold flex items-center gap-2 text-sky-400">
+                                        <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                                            data-icon="material-symbols:monitor-heart-outline" height="1em" role="img"
+                                            viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                            <path
+                                                d="M2 9V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v3h-2V6H4v3zm2 11q-.825 0-1.412-.587T2 18v-3h2v3h16v-3h2v3q0 .825-.587 1.413T20 20zm6.525-3.137q.25-.138.375-.413l3.1-6.2l1.1 2.2q.125.275.375.413T16 13h6v-2h-5.375L14.9 7.55q-.125-.275-.375-.387T14 7.05t-.525.113t-.375.387l-3.1 6.2l-1.1-2.2q-.125-.275-.375-.413T8 11H2v2h5.375L9.1 16.45q.125.275.375.413T10 17t.525-.137M12 12"
+                                                fill="currentColor"></path>
+                                        </svg> 实时兼容性测试监控
+                                    </h5>
+                                    <span
+                                        class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 status-pulse">测试运行中
+                                        (Estimated: 45s)</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-6">
+                                    <div class="text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase mb-2">CPU 使用率</p>
+                                        <div class="relative w-24 h-24 mx-auto flex items-center justify-center">
+                                            <svg class="w-full h-full transform -rotate-90">
+                                                <circle cx="48" cy="48" fill="transparent" r="40" stroke="#1e293b"
+                                                    stroke-width="8"></circle>
+                                                <circle cx="48" cy="48" fill="transparent" r="40" stroke="#38bdf8"
+                                                    stroke-dasharray="251.2" stroke-dashoffset="150"
+                                                    stroke-linecap="round" stroke-width="8"></circle>
+                                            </svg>
+                                            <span class="absolute text-sm font-bold">35%</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase mb-2">RAM 占用 (MB)</p>
+                                        <div class="relative w-24 h-24 mx-auto flex items-center justify-center">
+                                            <svg class="w-full h-full transform -rotate-90">
+                                                <circle cx="48" cy="48" fill="transparent" r="40" stroke="#1e293b"
+                                                    stroke-width="8"></circle>
+                                                <circle cx="48" cy="48" fill="transparent" r="40" stroke="#818cf8"
+                                                    stroke-dasharray="251.2" stroke-dashoffset="100"
+                                                    stroke-linecap="round" stroke-width="8"></circle>
+                                            </svg>
+                                            <span class="absolute text-sm font-bold">1,240</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase mb-2">GPU 核心负载</p>
+                                        <div class="relative w-24 h-24 mx-auto flex items-center justify-center">
+                                            <svg class="w-full h-full transform -rotate-90">
+                                                <circle cx="48" cy="48" fill="transparent" r="40" stroke="#1e293b"
+                                                    stroke-width="8"></circle>
+                                                <circle cx="48" cy="48" fill="transparent" r="40" stroke="#c084fc"
+                                                    stroke-dasharray="251.2" stroke-dashoffset="80"
+                                                    stroke-linecap="round" stroke-width="8"></circle>
+                                            </svg>
+                                            <span class="absolute text-sm font-bold">68%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-8 grid grid-cols-2 gap-4 text-xs">
+                                    <div class="flex justify-between p-2 border-b border-slate-800">
+                                        <span class="text-slate-500 italic">启动耗时</span>
+                                        <span class="font-mono text-sky-400">1,280 ms</span>
+                                    </div>
+                                    <div class="flex justify-between p-2 border-b border-slate-800">
+                                        <span class="text-slate-500 italic">网络吞吐</span>
+                                        <span class="font-mono text-sky-400">452 KB/s</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-4 pt-4 border-t border-slate-800">
+                                <button
+                                    class="px-8 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition-all text-sm">取消注册</button>
+                                <button
+                                    class="px-8 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 rounded-lg font-bold shadow-lg shadow-sky-900/40 hover:scale-105 transition-all">提交并生成UUID</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <!-- 在线代码修改 (Editor) -->
+            <section class="page-section h-full flex flex-col gap-4 hidden" id="page-editor">
+                <div class="flex justify-between items-center glass-panel p-4 rounded-xl border border-sky-500/20">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2 px-3 py-1 bg-slate-800 rounded-md border border-slate-700">
+                            <svg aria-hidden="true" class="iconify text-sky-400 iconify--material-symbols"
+                                data-icon="material-symbols:terminal" height="1em" role="img" viewbox="0 0 24 24"
+                                width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v12q0 .825-.587 1.413T20 20zm0-2h16V8H4zm3.5-1l-1.4-1.4L8.675 13l-2.6-2.6L7.5 9l4 4zm4.5 0v-2h6v2z"
+                                    fill="currentColor"></path>
+                            </svg>
+                            <span class="text-sm font-mono tracking-tight">inference.py</span>
+                        </div>
+                        <div class="text-[11px] text-slate-500 italic">
+                            正在编辑: <span class="text-sky-300">ResNet50-ObjectDetection</span> | 所在容器: <span
+                                class="text-sky-300">test-runtime-v2</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button
+                            class="flex items-center gap-1 px-4 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs transition-colors">
+                            <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                                data-icon="material-symbols:history-rounded" height="1em" role="img" viewbox="0 0 24 24"
+                                width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M12 21q-3.15 0-5.575-1.912T3.275 14.2q-.1-.375.15-.687t.675-.363q.4-.05.725.15t.45.6q.6 2.25 2.475 3.675T12 19q2.925 0 4.963-2.037T19 12t-2.037-4.962T12 5q-1.725 0-3.225.8T6.25 8H8q.425 0 .713.288T9 9t-.288.713T8 10H4q-.425 0-.712-.288T3 9V5q0-.425.288-.712T4 4t.713.288T5 5v1.35q1.275-1.6 3.113-2.475T12 3q1.875 0 3.513.713t2.85 1.924t1.925 2.85T21 12t-.712 3.513t-1.925 2.85t-2.85 1.925T12 21m1-9.4l2.5 2.5q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-2.8-2.8q-.15-.15-.225-.337T11 11.975V8q0-.425.288-.712T12 7t.713.288T13 8z"
+                                    fill="currentColor"></path>
+                            </svg> 回滚版本
+                        </button>
+                        <button
+                            class="flex items-center gap-1 px-4 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-xs text-white transition-colors font-bold neon-border"
+                            onclick="saveCode()">
+                            <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                                data-icon="material-symbols:save-outline" height="1em" role="img" viewbox="0 0 24 24"
+                                width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M21 7v12q0 .825-.587 1.413T19 21H5q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h12zm-2 .85L16.15 5H5v14h14zm-4.875 9.275Q15 16.25 15 15t-.875-2.125T12 12t-2.125.875T9 15t.875 2.125T12 18t2.125-.875M6 10h9V6H6zM5 7.85V19V5z"
+                                    fill="currentColor"></path>
+                            </svg> 保存并热更新镜像
+                        </button>
+                    </div>
+                </div>
+                <!-- 模拟 IDE -->
+                <div class="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col border border-slate-800">
+                    <div class="flex-1 font-mono text-sm code-editor p-4 overflow-auto leading-relaxed">
+                        <div class="code-line"><span class="text-rose-400">import</span> <span
+                                class="text-emerald-400">os</span></div>
+                        <div class="code-line"><span class="text-rose-400">import</span> <span
+                                class="text-emerald-400">torch</span></div>
+                        <div class="code-line"><span class="text-rose-400">from</span> <span
+                                class="text-emerald-400">model_factory</span> <span class="text-rose-400">import</span>
+                            load_resnet</div>
+                        <div class="code-line"></div>
+                        <div class="code-line"><span class="text-slate-500"># 核心推理入口 (推理代码可在线热更新)</span></div>
+                        <div class="code-line"><span class="text-rose-400">def</span> <span
+                                class="text-sky-400">predict</span>(image_tensor):</div>
+                        <div class="code-line pl-6">device = <span class="text-amber-400">"cuda"</span> <span
+                                class="text-rose-400">if</span> torch.cuda.is_available() <span
+                                class="text-rose-400">else</span> <span class="text-amber-400">"cpu"</span></div>
+                        <div class="code-line pl-6">model = load_resnet(<span
+                                class="text-amber-400">"./weights/best.pth"</span>)</div>
+                        <div class="code-line pl-6">model.to(device)</div>
+                        <div class="code-line pl-6">model.eval()</div>
+                        <div class="code-line"></div>
+                        <div class="code-line pl-6"><span class="text-rose-400">with</span> torch.no_grad():</div>
+                        <div
+                            class="code-line pl-12 flex items-center cursor-text bg-sky-500/10 border-l-2 border-sky-500">
+                            output = model(image_tensor)<span class="w-1.5 h-5 bg-sky-400 ml-1 animate-pulse"></span>
+                        </div>
+                        <div class="code-line pl-12"><span class="text-rose-400">return</span> output.softmax(dim=<span
+                                class="text-purple-400">1</span>)</div>
+                    </div>
+                    <div
+                        class="h-8 bg-slate-900 border-t border-slate-800 flex items-center justify-between px-4 text-[10px] text-slate-500">
+                        <div class="flex gap-4">
+                            <span>Ln 13, Col 26</span>
+                            <span>UTF-8</span>
+                            <span>Python 3.9</span>
+                        </div>
+                        <div class="flex gap-2 text-emerald-500">
+                            <svg aria-hidden="true" class="iconify iconify--material-symbols"
+                                data-icon="material-symbols:check-circle-outline" height="1em" role="img"
+                                viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="m10.6 16.6l7.05-7.05l-1.4-1.4l-5.65 5.65l-2.85-2.85l-1.4 1.4zM12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8"
+                                    fill="currentColor"></path>
+                            </svg> 语法检测正常
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <!-- 算法回收站 (Recycle) -->
+            <section class="page-section hidden" id="page-recycle">
+                <div class="glass-panel rounded-2xl p-8 mb-6 bg-slate-900/20">
+                    <div class="flex items-center justify-between mb-8">
+                        <div>
+                            <h3 class="text-2xl font-bold text-rose-400">回收站 (Algorithm Bin)</h3>
+                            <p class="text-sm text-slate-500 italic mt-1 pb-2 border-b border-rose-500/20">
+                                算法标记为“已废弃”后存放于此，保留期为30天，期满后将自动清理文件与记录。</p>
+                        </div>
+                        <button
+                            class="bg-rose-500/20 text-rose-400 border border-rose-500/30 px-6 py-2 rounded-lg hover:bg-rose-500/30 transition-all text-sm font-semibold">
+                            彻底清除全部记录
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4">
+                        <!-- Recycle Item -->
+                        <div
+                            class="p-6 rounded-xl border border-dashed border-slate-700 flex justify-between items-center group hover:bg-slate-800/30 transition-all">
+                            <div class="flex gap-6">
+                                <div
+                                    class="w-12 h-12 rounded bg-slate-900 flex items-center justify-center text-slate-600 grayscale">
+                                    <svg aria-hidden="true" class="iconify text-3xl iconify--material-symbols"
+                                        data-icon="material-symbols:block" height="1em" role="img" viewbox="0 0 24 24"
+                                        width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M8.1 21.213q-1.825-.788-3.175-2.138T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22t-3.9-.788m8.825-2.887q.4-.3.75-.65t.65-.75L7.075 5.675q-.4.3-.75.65t-.65.75z"
+                                            fill="currentColor"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h5 class="font-bold text-slate-400">EfficientNet-OldV1</h5>
+                                    <div class="flex gap-4 text-xs text-slate-500 mt-2 italic">
+                                        <span>废弃时间: 2026-02-23</span>
+                                        <span class="text-rose-500/70">剩余保留期: 28天</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button
+                                    class="px-4 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 text-xs transition-colors"
+                                    onclick="restoreRecord()">恢复记录</button>
+                                <button
+                                    class="px-4 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 text-xs transition-colors">彻底粉碎镜像</button>
+                            </div>
+                        </div>
+                        <!-- Empty Placeholder for more items -->
+                        <div
+                            class="p-6 rounded-xl border border-dashed border-slate-800 text-center text-slate-600 italic text-sm">
+                            无更多待清理记录
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    <!-- 模态框: 算法删除校验 -->
+    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center"
+        id="modal-delete">
+        <div
+            class="w-[500px] glass-panel border-rose-500/50 rounded-2xl p-8 scale-95 animate-in fade-in zoom-in-95 duration-200">
+            <div class="flex items-center gap-4 text-rose-400 mb-6">
+                <svg aria-hidden="true" class="iconify text-4xl iconify--material-symbols"
+                    data-icon="material-symbols:warning-rounded" height="1em" role="img" viewbox="0 0 24 24" width="1em"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M2.725 21q-.275 0-.5-.137t-.35-.363t-.137-.488t.137-.512l9.25-16q.15-.25.388-.375T12 3t.488.125t.387.375l9.25 16q.15.25.138.513t-.138.487t-.35.363t-.5.137zm9.988-3.287Q13 17.425 13 17t-.288-.712T12 16t-.712.288T11 17t.288.713T12 18t.713-.288m0-3Q13 14.425 13 14v-3q0-.425-.288-.712T12 10t-.712.288T11 11v3q0 .425.288.713T12 15t.713-.288"
+                        fill="currentColor"></path>
+                </svg>
+                <div>
+                    <h3 class="text-xl font-bold">删除前置校验</h3>
+                    <p class="text-xs text-slate-500 mt-1 uppercase tracking-tighter italic">Deletion Dependency Check
+                    </p>
+                </div>
+            </div>
+            <div class="bg-rose-500/5 border border-rose-500/20 rounded-xl p-4 mb-6">
+                <p class="text-sm text-slate-300">无法直接删除算法 <span class="text-rose-400 font-bold"
+                        id="del-name">YOLOv8-Custom</span>，系统检测到以下活跃引用：</p>
+                <ul class="mt-4 space-y-2 text-xs text-slate-400 italic">
+                    <li class="flex items-center gap-2"><span class="w-1 h-1 bg-sky-400 rounded-full"></span>
+                        任务调度：每日路网目标识别任务 (ID: T-902... )</li>
+                    <li class="flex items-center gap-2"><span class="w-1 h-1 bg-sky-400 rounded-full"></span>
+                        模型服务：Traffic-Monitor-Production</li>
+                </ul>
+                <p class="mt-4 text-[11px] text-rose-400/80 font-semibold underline underline-offset-4 cursor-pointer">
+                    需先解除以上依赖关系方可执行删除</p>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button class="px-6 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm transition-all"
+                    onclick="closeModal('modal-delete')">确认了解</button>
+                <button
+                    class="px-6 py-2 rounded-lg bg-rose-500/20 text-rose-400/50 border border-rose-500/10 text-sm cursor-not-allowed italic"
+                    disabled="">强制删除 (不建议)</button>
+            </div>
+        </div>
+    </div>
+    <!-- 模态框: 算法详情 -->
+    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center"
+        id="modal-detail">
+        <div
+            class="w-[900px] h-[750px] glass-panel rounded-2xl p-0 flex flex-col overflow-hidden relative border-sky-400/30">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 bg-sky-500/10 text-sky-400 rounded flex items-center justify-center"><svg
+                            aria-hidden="true" class="iconify text-2xl iconify--material-symbols"
+                            data-icon="material-symbols:info-outline" height="1em" role="img" viewbox="0 0 24 24"
+                            width="1em" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M11 17h2v-6h-2zm1.713-8.287Q13 8.425 13 8t-.288-.712T12 7t-.712.288T11 8t.288.713T12 9t.713-.288M12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8"
+                                fill="currentColor"></path>
+                        </svg></div>
+                    <div>
+                        <h3 class="text-xl font-bold">算法全维度详情 (Detail)</h3>
+                        <p class="text-[10px] text-slate-500 font-mono">UUID: 550e8400-e29b-41d4-a716-446655440000</p>
+                    </div>
+                </div>
+                <button
+                    class="w-10 h-10 rounded-full hover:bg-slate-800 flex items-center justify-center text-slate-500"
+                    onclick="closeModal('modal-detail')"><svg aria-hidden="true"
+                        class="iconify text-2xl iconify--material-symbols" data-icon="material-symbols:close"
+                        height="1em" role="img" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M6.4 19L5 17.6l5.6-5.6L5 6.4L6.4 5l5.6 5.6L17.6 5L19 6.4L13.4 12l5.6 5.6l-1.4 1.4l-5.6-5.6z"
+                            fill="currentColor"></path>
+                    </svg></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-8 space-y-8">
+                <div class="grid grid-cols-2 gap-8">
+                    <div class="space-y-4">
+                        <h6
+                            class="text-xs font-bold text-sky-400 uppercase tracking-widest border-b border-sky-500/20 pb-2 italic">
+                            历史版本追踪 (History)</h6>
+                        <div class="space-y-2">
+                            <div
+                                class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-800">
+                                <div>
+                                    <span class="text-sky-400">v2.4.1</span>
+                                    <span class="text-slate-500 text-[10px] ml-2">2026-02-20 (Current)</span>
+                                </div>
+                                <svg aria-hidden="true" class="iconify text-emerald-400 iconify--material-symbols"
+                                    data-icon="material-symbols:check-circle" height="1em" role="img"
+                                    viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="m10.6 16.6l7.05-7.05l-1.4-1.4l-5.65 5.65l-2.85-2.85l-1.4 1.4zM12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22"
+                                        fill="currentColor"></path>
+                                </svg>
+                            </div>
+                            <div
+                                class="flex items-center justify-between p-3 bg-slate-900/20 rounded-lg border border-slate-800 opacity-60">
+                                <div>
+                                    <span class="text-slate-400">v2.4.0</span>
+                                    <span class="text-slate-500 text-[10px] ml-2">2026-02-01</span>
+                                </div>
+                                <button class="text-xs text-sky-500 underline">回滚</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <h6
+                            class="text-xs font-bold text-indigo-400 uppercase tracking-widest border-b border-indigo-500/20 pb-2 italic">
+                            测试报告摘要 (Report)</h6>
+                        <div
+                            class="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/20 text-xs text-slate-400 leading-relaxed italic">
+                            本算法已通过 v2.1 兼容性测试套件。资源占用峰值 CPU:42% / GPU:78%。在 ILSVRC 验证集上 mAP@0.5 指标为 89.4%。支持并发推理瓶颈测试，最大
+                            QPS 为 120。
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <h6
+                        class="text-xs font-bold text-emerald-400 uppercase tracking-widest border-b border-emerald-500/20 pb-2 italic">
+                        示例代码 (Usage Examples)</h6>
+                    <div
+                        class="bg-black/40 rounded-xl p-4 font-mono text-xs text-emerald-400/90 leading-6 border border-emerald-500/10">
+                        <pre>import am_client<br/>model = am_client.load("550e8400-e29b-41d4-a716-446655440000")<br/>result = model.inference(image_path="./data/test.jpg")<br/>print(f"检测结果: {result.objects}")</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 模态框: 算法对比 -->
+    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center"
+        id="modal-compare">
+        <div class="w-[850px] glass-panel rounded-2xl p-8 border-sky-400 shadow-2xl shadow-sky-500/20">
+            <h3 class="text-2xl font-bold mb-8 italic flex items-center gap-2">
+                <svg aria-hidden="true" class="iconify text-sky-400 iconify--material-symbols"
+                    data-icon="material-symbols:compare" height="1em" role="img" viewbox="0 0 24 24" width="1em"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M10 23v-2H5q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h5V1h2v22zm-5-5h5v-6zm9 3v-9l5 6V5h-5V3h5q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21z"
+                        fill="currentColor"></path>
+                </svg> 算法性能参数横向对比
+            </h3>
+            <table class="w-full text-center">
+                <thead>
+                    <tr class="text-slate-500 text-sm">
+                        <th class="py-4 border-b border-slate-700 text-left">性能指标</th>
+                        <th class="py-4 border-b border-slate-700 font-bold text-sky-400">ResNet50_V2</th>
+                        <th class="py-4 border-b border-slate-700 font-bold text-indigo-400">MobileNet_V3</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm">
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="py-4 border-b border-slate-800 text-left text-slate-400">推理延迟 (ms)</td>
+                        <td class="py-4 border-b border-slate-800 font-mono">12.5</td>
+                        <td class="py-4 border-b border-slate-800 font-mono text-emerald-400">4.2 (胜)</td>
+                    </tr>
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="py-4 border-b border-slate-800 text-left text-slate-400">准确率 (mAP)</td>
+                        <td class="py-4 border-b border-slate-800 font-mono text-emerald-400">92.4% (胜)</td>
+                        <td class="py-4 border-b border-slate-800 font-mono">81.2%</td>
+                    </tr>
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="py-4 border-b border-slate-800 text-left text-slate-400">显存占用 (MB)</td>
+                        <td class="py-4 border-b border-slate-800 font-mono">4096</td>
+                        <td class="py-4 border-b border-slate-800 font-mono text-emerald-400">512 (胜)</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="mt-8 flex justify-end">
+                <button class="bg-sky-600 px-6 py-2 rounded text-sm font-bold shadow-lg shadow-sky-500/20"
+                    onclick="closeModal('modal-compare')">关闭对比视图</button>
+            </div>
+        </div>
+    </div>
+    <grammarly-desktop-integration data-grammarly-shadow-root="true"></grammarly-desktop-integration>
+    
+    <script src="../static/js/p1.js"></script>
+</body>
+
+</html>
