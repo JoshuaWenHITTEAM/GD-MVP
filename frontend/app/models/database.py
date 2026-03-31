@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-# PostgreSQL 数据库连接配置
+# 数据库连接配置
 DATABASE_URL = "postgresql://postgres:123456@localhost:5432/algorithm_db"
 
 # 创建引擎（PostgreSQL）
@@ -17,7 +17,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-#测试用例
+# 测试用例
 class AlgorithmModel(Base):
     __tablename__ = "algorithms"
 

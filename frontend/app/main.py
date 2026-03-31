@@ -2,8 +2,6 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-
-# 导入拆分出去的路由
 from app.web.views import router as web_router
 from app.api.endpoints import router as api_router
 from app.models.database import init_db
@@ -24,7 +22,7 @@ async def startup_event():
 # 1. 自动计算路径
 BASE_PATH = Path(__file__).resolve().parent.parent
 
-# 2. 配置静态文件 (你已经改名为 static)
+# 2. 配置静态文件
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 # 3. 包含路由
@@ -36,4 +34,4 @@ app.include_router(api_router, prefix="/api", tags=["数据接口"])
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True) #默认端口8000
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True) # 默认端口8000
