@@ -6,27 +6,32 @@ from pathlib import Path
 # 导入拆分出去的路由
 from app.web.views import router as web_router
 from app.api.endpoints import router as api_router
+from app.models.database import init_db
 
 app = FastAPI(title="MVP Demo")
 
 ##-----------------------##
 
 #重要待办项
-#app.event("startup")  # 启动路径配置未完成，如数据库连接
+
+# 启动时初始化数据库
+@app.on_event("startup")
+async def startup_event():
+    init_db()
 
 ##-----------------------##
 
 # 1. 自动计算路径
 BASE_PATH = Path(__file__).resolve().parent.parent
 
-# 2. 配置静态文件
+# 2. 配置静态文件 (你已经改名为 static)
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 # 3. 包含路由
 # 页面路由（不加前缀，直接访问 /）
 app.include_router(web_router)
 
-# API 路由（统一加上 /api 前缀，方便管理）
+# API 接口（统一加上 /api 前缀，方便管理）
 app.include_router(api_router, prefix="/api", tags=["数据接口"])
 
 if __name__ == "__main__":
