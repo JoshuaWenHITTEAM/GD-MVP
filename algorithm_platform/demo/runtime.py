@@ -243,28 +243,39 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
             "version": version["version"],
             "versionName": version["versionName"],
             "entrypoint": version["entrypoint"],
+            "codePath": version.get("codePath", ""),
             "configPath": version["configPath"],
             "publishStatus": version["publishStatus"],
             "generatedAt": now_iso(),
         },
     )
-    (snapshot_dir / "main.py").write_text(
-        "\n".join(
-            [
-                f'VERSION_UUID = "{version["uuid"]}"',
-                f'VERSION = "{version["version"]}"',
-                f'VERSION_NAME = "{version["versionName"]}"',
-                "",
-                "def run() -> str:",
-                '    return f"debug session is running {VERSION} ({VERSION_NAME})"',
-                "",
-                'if __name__ == "__main__":',
-                "    print(run())",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    code_path = Path(version.get("codePath") or "")
+    config_path = Path(version.get("configPath") or "")
+    if code_path.exists():
+        replace_directory(code_path, snapshot_dir / "code")
+    else:
+        (snapshot_dir / "code").mkdir(parents=True, exist_ok=True)
+        (snapshot_dir / "code" / "main.py").write_text(
+            "\n".join(
+                [
+                    f'VERSION_UUID = "{version["uuid"]}"',
+                    f'VERSION = "{version["version"]}"',
+                    f'VERSION_NAME = "{version["versionName"]}"',
+                    "",
+                    "def run() -> str:",
+                    '    return f"debug session is running {VERSION} ({VERSION_NAME})"',
+                    "",
+                    'if __name__ == "__main__":',
+                    "    print(run())",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+    if config_path.exists() and config_path.is_file():
+        config_dir = snapshot_dir / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(config_path, config_dir / config_path.name)
     return snapshot_dir
 
 

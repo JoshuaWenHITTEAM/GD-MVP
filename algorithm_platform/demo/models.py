@@ -19,6 +19,7 @@ class CreateVersionRequest(BaseModel):
     version: str
     versionName: str | None = None
     entrypoint: str
+    codePath: str = ""
     configPath: str = ""
     changelog: str = ""
 
@@ -38,17 +39,24 @@ class UpdateVersionRequest(BaseModel):
     version: str | None = None
     versionName: str | None = None
     entrypoint: str | None = None
+    codePath: str | None = None
     configPath: str | None = None
     changelog: str | None = None
     publishStatus: str | None = None
 
 
 class CreateImageRequest(BaseModel):
-    registryUrl: str = Field(..., description="镜像仓库地址")
-    repositoryName: str = Field(..., description="仓库名称")
+    sourceType: Literal["registry", "local"] = Field(default="local", description="镜像来源类型")
+    localImageName: str = Field(default="", description="本地镜像名称")
+    imagePullPolicy: Literal["Never", "IfNotPresent", "Always"] = Field(
+        default="Never",
+        description="镜像拉取策略",
+    )
+    registryUrl: str = Field(default="", description="镜像仓库地址")
+    repositoryName: str = Field(default="", description="仓库名称")
     imageTag: str = Field(..., description="镜像标签")
     imageDigest: str | None = Field(default=None, description="镜像摘要")
-    fullImageUri: str = Field(..., description="完整镜像地址")
+    fullImageUri: str = Field(default="", description="完整镜像地址")
     imageSize: int | None = Field(default=None, description="镜像大小")
 
 

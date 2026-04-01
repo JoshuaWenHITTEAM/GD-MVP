@@ -10,7 +10,7 @@ TZ = timezone(timedelta(hours=8))
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "demo.db"
 RUNTIME_ROOT = BASE_DIR / "runtime"
-SCHEMA_VERSION = "2026-03-24-clean"
+SCHEMA_VERSION = "2026-04-01-local-image-code-path"
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS app_meta (
@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS versions (
     version TEXT NOT NULL,
     versionName TEXT NOT NULL,
     entrypoint TEXT NOT NULL,
+    codePath TEXT NOT NULL,
     configPath TEXT NOT NULL,
     changelog TEXT NOT NULL,
     publishStatus TEXT NOT NULL,
@@ -50,6 +51,9 @@ CREATE TABLE IF NOT EXISTS versions (
 CREATE TABLE IF NOT EXISTS images (
     uuid TEXT PRIMARY KEY,
     algorithmVersionUuid TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    localImageName TEXT NOT NULL,
+    imagePullPolicy TEXT NOT NULL,
     registryUrl TEXT NOT NULL,
     repositoryName TEXT NOT NULL,
     imageTag TEXT NOT NULL,
@@ -261,8 +265,8 @@ def seed_data() -> None:
             """
             INSERT INTO versions (
                 uuid, algorithmUuid, version, versionName, entrypoint,
-                configPath, changelog, publishStatus, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                codePath, configPath, changelog, publishStatus, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -271,6 +275,7 @@ def seed_data() -> None:
                     "1.0.0",
                     "YOLO基础版",
                     "python main.py",
+                    "/workspace/yolo/1.0.0",
                     "/configs/yolo.yaml",
                     "初始版本，支持基础目标检测",
                     "PUBLISHED",
@@ -283,6 +288,7 @@ def seed_data() -> None:
                     "1.0.1",
                     "YOLO调试版",
                     "python main.py",
+                    "/workspace/yolo/1.0.1",
                     "/configs/yolo_debug.yaml",
                     "新增调试参数和可视化输出",
                     "PUBLISHED",
@@ -294,13 +300,17 @@ def seed_data() -> None:
         conn.execute(
             """
             INSERT INTO images (
-                uuid, algorithmVersionUuid, registryUrl, repositoryName, imageTag,
-                imageDigest, fullImageUri, imageSize, isAvailable, createdAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                uuid, algorithmVersionUuid, sourceType, localImageName, imagePullPolicy,
+                registryUrl, repositoryName, imageTag, imageDigest, fullImageUri,
+                imageSize, isAvailable, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 image_uuid,
                 version_v1_uuid,
+                "local",
+                "yolo-base:v1-gpu",
+                "Never",
                 "registry.example.com",
                 "algo/yolo",
                 "v1-gpu",

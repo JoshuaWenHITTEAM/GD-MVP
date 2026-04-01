@@ -172,6 +172,7 @@ def version_detail(item: dict[str, Any]) -> dict[str, Any]:
         "version": item["version"],
         "versionName": item["versionName"],
         "entrypoint": item["entrypoint"],
+        "codePath": item["codePath"],
         "configPath": item["configPath"],
         "changelog": item["changelog"],
         "publishStatus": item["publishStatus"],
@@ -184,6 +185,9 @@ def image_detail(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "uuid": item["uuid"],
         "algorithmVersionUuid": item["algorithmVersionUuid"],
+        "sourceType": item["sourceType"],
+        "localImageName": item["localImageName"],
+        "imagePullPolicy": item["imagePullPolicy"],
         "registryUrl": item["registryUrl"],
         "repositoryName": item["repositoryName"],
         "imageTag": item["imageTag"],
@@ -396,6 +400,23 @@ def ensure_image_available(image: dict[str, Any]) -> None:
     ensure(image["isAvailable"], 400, "image is offline")
 
 
+def resolve_image_payload(body: CreateImageRequest) -> dict[str, Any]:
+    payload = body.model_dump()
+    if payload["sourceType"] == "local":
+        local_image_name = (payload.get("localImageName") or payload.get("fullImageUri") or "").strip()
+        ensure(bool(local_image_name), 400, "localImageName is required for local images")
+        if not payload.get("fullImageUri"):
+            payload["fullImageUri"] = local_image_name
+        payload["localImageName"] = local_image_name
+        payload["imagePullPolicy"] = payload.get("imagePullPolicy") or "Never"
+        payload["registryUrl"] = payload.get("registryUrl") or ""
+        payload["repositoryName"] = payload.get("repositoryName") or ""
+    else:
+        ensure(bool(payload.get("fullImageUri")), 400, "fullImageUri is required for registry images")
+        payload["localImageName"] = payload.get("localImageName") or ""
+    return payload
+
+
 @app.post("/api/v1/algorithms")
 def create_algorithm(body: CreateAlgorithmRequest):
     existing = fetch_one(
@@ -534,8 +555,8 @@ def create_version(uuid: str, body: CreateVersionRequest):
         """
         INSERT INTO versions (
             uuid, algorithmUuid, version, versionName, entrypoint,
-            configPath, changelog, publishStatus, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            codePath, configPath, changelog, publishStatus, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             version_uuid,
@@ -543,6 +564,7 @@ def create_version(uuid: str, body: CreateVersionRequest):
             body.version,
             body.versionName or body.version,
             body.entrypoint,
+            body.codePath,
             body.configPath,
             body.changelog,
             "DRAFT",
@@ -634,40 +656,37 @@ def delete_version(uuid: str):
 @app.post("/api/v1/versions/{uuid}/images")
 def create_image(uuid: str, body: CreateImageRequest):
     require_version(uuid, "algorithm version not found")
+    payload = resolve_image_payload(body)
 
     image_uuid = gen_uuid("img")
     created_at = now_iso()
     execute(
         """
         INSERT INTO images (
-            uuid, algorithmVersionUuid, registryUrl, repositoryName, imageTag,
-            imageDigest, fullImageUri, imageSize, isAvailable, createdAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            uuid, algorithmVersionUuid, sourceType, localImageName, imagePullPolicy,
+            registryUrl, repositoryName, imageTag, imageDigest, fullImageUri,
+            imageSize, isAvailable, createdAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             image_uuid,
             uuid,
-            body.registryUrl,
-            body.repositoryName,
-            body.imageTag,
-            body.imageDigest,
-            body.fullImageUri,
-            body.imageSize,
+            payload["sourceType"],
+            payload["localImageName"],
+            payload["imagePullPolicy"],
+            payload["registryUrl"],
+            payload["repositoryName"],
+            payload["imageTag"],
+            payload["imageDigest"],
+            payload["fullImageUri"],
+            payload["imageSize"],
             1,
             created_at,
         ),
     )
     touch_version(uuid, created_at)
 
-    return ok(
-        {
-            "uuid": image_uuid,
-            "algorithmVersionUuid": uuid,
-            "fullImageUri": body.fullImageUri,
-            "isAvailable": True,
-            "createdAt": created_at,
-        }
-    )
+    return ok(image_detail(require_image(image_uuid)))
 
 
 @app.get("/api/v1/versions/{uuid}/images")
@@ -683,6 +702,9 @@ def list_images(uuid: str):
         items.append(
             {
                 "uuid": item["uuid"],
+                "sourceType": item["sourceType"],
+                "localImageName": item["localImageName"],
+                "imagePullPolicy": item["imagePullPolicy"],
                 "fullImageUri": item["fullImageUri"],
                 "imageTag": item["imageTag"],
                 "imageDigest": item["imageDigest"],
