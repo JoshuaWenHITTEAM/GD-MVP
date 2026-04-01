@@ -429,19 +429,7 @@ def create_algorithm(body: CreateAlgorithmRequest):
         ),
     )
 
-    return ok(
-        {
-            "uuid": algorithm_uuid,
-            "algorithmCode": body.algorithmCode,
-            "algorithmName": body.algorithmName,
-            "algorithmType": body.algorithmType,
-            "framework": body.framework or "",
-            "runtimeType": body.runtimeType or "",
-            "languageType": body.languageType or "",
-            "status": "ENABLED",
-            "createdAt": created_at,
-        }
-    )
+    return ok(algorithm_detail(require_algorithm(algorithm_uuid)))
 
 
 @app.get("/api/v1/algorithms")
@@ -564,18 +552,7 @@ def create_version(uuid: str, body: CreateVersionRequest):
     )
     touch_algorithm(uuid, created_at)
 
-    return ok(
-        {
-            "uuid": version_uuid,
-            "algorithmUuid": uuid,
-            "version": body.version,
-            "versionName": body.versionName or body.version,
-            "entrypoint": body.entrypoint,
-            "configPath": body.configPath,
-            "publishStatus": "DRAFT",
-            "createdAt": created_at,
-        }
-    )
+    return ok(version_detail(require_version(version_uuid)))
 
 
 @app.get("/api/v1/algorithms/{uuid}/versions")
