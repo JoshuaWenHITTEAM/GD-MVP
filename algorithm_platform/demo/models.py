@@ -22,6 +22,18 @@ class CreateVersionRequest(BaseModel):
     codePath: str = ""
     configPath: str = ""
     changelog: str = ""
+    sourceType: Literal["registry", "local"] = Field(default="local", description="镜像来源类型")
+    localImageName: str = Field(default="", description="本地镜像名称")
+    imagePullPolicy: Literal["Never", "IfNotPresent", "Always"] = Field(
+        default="Never",
+        description="镜像拉取策略",
+    )
+    registryUrl: str = Field(default="", description="镜像仓库地址")
+    repositoryName: str = Field(default="", description="仓库名称")
+    imageTag: str = Field(..., description="镜像标签")
+    imageDigest: str | None = Field(default=None, description="镜像摘要")
+    fullImageUri: str = Field(default="", description="完整镜像地址")
+    imageSize: int | None = Field(default=None, description="镜像大小")
 
 
 class UpdateAlgorithmRequest(BaseModel):
@@ -43,20 +55,17 @@ class UpdateVersionRequest(BaseModel):
     configPath: str | None = None
     changelog: str | None = None
     publishStatus: str | None = None
-
-
-class CreateImageRequest(BaseModel):
-    sourceType: Literal["registry", "local"] = Field(default="local", description="镜像来源类型")
-    localImageName: str = Field(default="", description="本地镜像名称")
-    imagePullPolicy: Literal["Never", "IfNotPresent", "Always"] = Field(
-        default="Never",
+    sourceType: Literal["registry", "local"] | None = Field(default=None, description="镜像来源类型")
+    localImageName: str | None = Field(default=None, description="本地镜像名称")
+    imagePullPolicy: Literal["Never", "IfNotPresent", "Always"] | None = Field(
+        default=None,
         description="镜像拉取策略",
     )
-    registryUrl: str = Field(default="", description="镜像仓库地址")
-    repositoryName: str = Field(default="", description="仓库名称")
-    imageTag: str = Field(..., description="镜像标签")
+    registryUrl: str | None = Field(default=None, description="镜像仓库地址")
+    repositoryName: str | None = Field(default=None, description="仓库名称")
+    imageTag: str | None = Field(default=None, description="镜像标签")
     imageDigest: str | None = Field(default=None, description="镜像摘要")
-    fullImageUri: str = Field(default="", description="完整镜像地址")
+    fullImageUri: str | None = Field(default=None, description="完整镜像地址")
     imageSize: int | None = Field(default=None, description="镜像大小")
 
 
@@ -66,8 +75,7 @@ class DeploymentResources(BaseModel):
 
 
 class CreateDeploymentRequest(BaseModel):
-    algorithmVersionUuid: str
-    imageUuid: str
+    versionUuid: str
     namespace: str = "default"
     port: int
     replicas: int = 1
@@ -75,32 +83,44 @@ class CreateDeploymentRequest(BaseModel):
     resources: DeploymentResources | None = None
 
 
+class UpdateDeploymentRequest(BaseModel):
+    versionUuid: str | None = None
+    port: int | None = None
+    env: dict[str, str] | None = None
+    resources: DeploymentResources | None = None
+
+
 class ScaleRequest(BaseModel):
     replicas: int
 
 
-class CreateDebugSessionRequest(BaseModel):
-    algorithmUuid: str
-    baseVersionUuid: str
-    sessionName: str
-    namespace: str = "debug"
-
-
-class HotUpdateRequest(BaseModel):
-    toVersionUuid: str
-    updateType: Literal["code", "image", "config"] = "code"
+class CreateBuildRecordRequest(BaseModel):
+    baseVersionUuid: str | None = None
+    outputVersionUuid: str | None = None
+    buildStatus: Literal["PENDING", "RUNNING", "SUCCESS", "FAILED"] = "PENDING"
     operator: str = ""
+    buildSource: str | None = None
+    sourceRevision: str | None = None
+    configRevision: str | None = None
+    imageTag: str | None = None
+    imageDigest: str | None = None
+    fullImageUri: str | None = None
+    buildLogPath: str | None = None
+    errorMessage: str | None = None
+    resultSummary: str | None = None
 
 
-class CreateContainerRequest(BaseModel):
-    algorithmVersionUuid: str
-    imageUuid: str
-    name: str
-    version: str | None = None
-    image: str | None = None
-    namespace: str = "default"
-    port: int
-    replicas: int
-    env: dict[str, str] = Field(default_factory=dict)
-    cpu: str | None = None
-    memory: str | None = None
+class UpdateBuildRecordRequest(BaseModel):
+    outputVersionUuid: str | None = None
+    buildStatus: Literal["PENDING", "RUNNING", "SUCCESS", "FAILED"] | None = None
+    operator: str | None = None
+    buildSource: str | None = None
+    sourceRevision: str | None = None
+    configRevision: str | None = None
+    imageTag: str | None = None
+    imageDigest: str | None = None
+    fullImageUri: str | None = None
+    buildLogPath: str | None = None
+    errorMessage: str | None = None
+    resultSummary: str | None = None
+    finishedAt: str | None = None

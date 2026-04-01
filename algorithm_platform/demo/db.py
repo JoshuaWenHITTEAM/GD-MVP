@@ -10,7 +10,7 @@ TZ = timezone(timedelta(hours=8))
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "demo.db"
 RUNTIME_ROOT = BASE_DIR / "runtime"
-SCHEMA_VERSION = "2026-04-01-local-image-code-path"
+SCHEMA_VERSION = "2026-04-01-build-records-only"
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS app_meta (
@@ -41,16 +41,6 @@ CREATE TABLE IF NOT EXISTS versions (
     codePath TEXT NOT NULL,
     configPath TEXT NOT NULL,
     changelog TEXT NOT NULL,
-    publishStatus TEXT NOT NULL,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL,
-    UNIQUE (algorithmUuid, version),
-    FOREIGN KEY (algorithmUuid) REFERENCES algorithms(uuid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS images (
-    uuid TEXT PRIMARY KEY,
-    algorithmVersionUuid TEXT NOT NULL,
     sourceType TEXT NOT NULL,
     localImageName TEXT NOT NULL,
     imagePullPolicy TEXT NOT NULL,
@@ -60,15 +50,16 @@ CREATE TABLE IF NOT EXISTS images (
     imageDigest TEXT,
     fullImageUri TEXT NOT NULL,
     imageSize INTEGER,
-    isAvailable INTEGER NOT NULL,
+    publishStatus TEXT NOT NULL,
     createdAt TEXT NOT NULL,
-    FOREIGN KEY (algorithmVersionUuid) REFERENCES versions(uuid) ON DELETE CASCADE
+    updatedAt TEXT NOT NULL,
+    UNIQUE (algorithmUuid, version),
+    FOREIGN KEY (algorithmUuid) REFERENCES algorithms(uuid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS deployments (
     uuid TEXT PRIMARY KEY,
-    algorithmVersionUuid TEXT NOT NULL,
-    imageUuid TEXT NOT NULL,
+    versionUuid TEXT NOT NULL,
     namespace TEXT NOT NULL,
     deploymentName TEXT NOT NULL,
     serviceName TEXT NOT NULL,
@@ -80,70 +71,34 @@ CREATE TABLE IF NOT EXISTS deployments (
     errorMessage TEXT NOT NULL,
     env TEXT NOT NULL,
     resources TEXT NOT NULL,
+    image TEXT NOT NULL,
     deployedAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL,
     UNIQUE (namespace, deploymentName),
-    FOREIGN KEY (algorithmVersionUuid) REFERENCES versions(uuid),
-    FOREIGN KEY (imageUuid) REFERENCES images(uuid)
+    FOREIGN KEY (versionUuid) REFERENCES versions(uuid)
 );
 
-CREATE TABLE IF NOT EXISTS debug_sessions (
+CREATE TABLE IF NOT EXISTS build_records (
     uuid TEXT PRIMARY KEY,
     algorithmUuid TEXT NOT NULL,
-    baseVersionUuid TEXT NOT NULL,
-    currentVersionUuid TEXT NOT NULL,
-    sessionName TEXT NOT NULL,
-    namespace TEXT NOT NULL,
-    podName TEXT NOT NULL,
-    debugStatus TEXT NOT NULL,
-    runtimePath TEXT NOT NULL,
-    processPid INTEGER,
-    lastError TEXT NOT NULL,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL,
-    FOREIGN KEY (algorithmUuid) REFERENCES algorithms(uuid),
-    FOREIGN KEY (baseVersionUuid) REFERENCES versions(uuid),
-    FOREIGN KEY (currentVersionUuid) REFERENCES versions(uuid)
-);
-
-CREATE TABLE IF NOT EXISTS hot_updates (
-    uuid TEXT PRIMARY KEY,
-    debugSessionUuid TEXT NOT NULL,
-    fromVersionUuid TEXT NOT NULL,
-    toVersionUuid TEXT NOT NULL,
-    updateType TEXT NOT NULL,
-    updateStatus TEXT NOT NULL,
+    baseVersionUuid TEXT,
+    outputVersionUuid TEXT,
+    buildStatus TEXT NOT NULL,
     operator TEXT NOT NULL,
+    buildSource TEXT,
+    sourceRevision TEXT,
+    configRevision TEXT,
+    imageTag TEXT,
+    imageDigest TEXT,
+    fullImageUri TEXT,
     startedAt TEXT NOT NULL,
     finishedAt TEXT NOT NULL,
+    buildLogPath TEXT NOT NULL,
     errorMessage TEXT NOT NULL,
     resultSummary TEXT NOT NULL,
-    actionLogPath TEXT NOT NULL,
-    FOREIGN KEY (debugSessionUuid) REFERENCES debug_sessions(uuid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS containers (
-    uuid TEXT PRIMARY KEY,
-    algorithmVersionUuid TEXT NOT NULL,
-    imageUuid TEXT NOT NULL,
-    name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    image TEXT NOT NULL,
-    namespace TEXT NOT NULL,
-    port INTEGER NOT NULL,
-    replicas INTEGER NOT NULL,
-    readyReplicas INTEGER NOT NULL,
-    env TEXT NOT NULL,
-    cpu TEXT,
-    memory TEXT,
-    deploymentName TEXT NOT NULL,
-    serviceName TEXT NOT NULL,
-    status TEXT NOT NULL,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL,
-    UNIQUE (namespace, deploymentName),
-    FOREIGN KEY (algorithmVersionUuid) REFERENCES versions(uuid),
-    FOREIGN KEY (imageUuid) REFERENCES images(uuid)
+    FOREIGN KEY (algorithmUuid) REFERENCES algorithms(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (baseVersionUuid) REFERENCES versions(uuid),
+    FOREIGN KEY (outputVersionUuid) REFERENCES versions(uuid)
 );
 """
 
@@ -237,8 +192,6 @@ def seed_data() -> None:
     algorithm_uuid = "alg-7f3d91b2-1f0f-4e1c-b123-001"
     version_v1_uuid = "ver-b4e1b301-cb17-44f9-a001-101"
     version_v2_uuid = "ver-a99d1c01-2f17-47f1-b001-102"
-    image_uuid = "img-3e3f9bb1-82c3-45aa-a111-301"
-
     with get_conn() as conn:
         conn.execute(
             """
@@ -265,8 +218,10 @@ def seed_data() -> None:
             """
             INSERT INTO versions (
                 uuid, algorithmUuid, version, versionName, entrypoint,
-                codePath, configPath, changelog, publishStatus, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                codePath, configPath, changelog, sourceType, localImageName,
+                imagePullPolicy, registryUrl, repositoryName, imageTag,
+                imageDigest, fullImageUri, imageSize, publishStatus, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -278,6 +233,15 @@ def seed_data() -> None:
                     "/workspace/yolo/1.0.0",
                     "/configs/yolo.yaml",
                     "初始版本，支持基础目标检测",
+                    "local",
+                    "yolo-base:v1-gpu",
+                    "Never",
+                    "registry.example.com",
+                    "algo/yolo",
+                    "v1-gpu",
+                    "sha256:abcd1234",
+                    "registry.example.com/algo/yolo:v1-gpu",
+                    536870912,
                     "PUBLISHED",
                     created_at,
                     created_at,
@@ -291,35 +255,20 @@ def seed_data() -> None:
                     "/workspace/yolo/1.0.1",
                     "/configs/yolo_debug.yaml",
                     "新增调试参数和可视化输出",
+                    "local",
+                    "yolo-base:v1-gpu",
+                    "Never",
+                    "registry.example.com",
+                    "algo/yolo",
+                    "v1-gpu",
+                    "sha256:abcd1234",
+                    "registry.example.com/algo/yolo:v1-gpu",
+                    536870912,
                     "PUBLISHED",
                     created_at,
                     created_at,
                 ),
             ],
-        )
-        conn.execute(
-            """
-            INSERT INTO images (
-                uuid, algorithmVersionUuid, sourceType, localImageName, imagePullPolicy,
-                registryUrl, repositoryName, imageTag, imageDigest, fullImageUri,
-                imageSize, isAvailable, createdAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                image_uuid,
-                version_v1_uuid,
-                "local",
-                "yolo-base:v1-gpu",
-                "Never",
-                "registry.example.com",
-                "algo/yolo",
-                "v1-gpu",
-                "sha256:abcd1234",
-                "registry.example.com/algo/yolo:v1-gpu",
-                536870912,
-                1,
-                created_at,
-            ),
         )
         conn.commit()
 
@@ -332,21 +281,8 @@ def ensure_database() -> None:
         init_database()
     seed_data()
 
-
-def parse_image(row: dict[str, Any]) -> dict[str, Any]:
-    item = dict(row)
-    item["isAvailable"] = bool(item["isAvailable"])
-    return item
-
-
 def parse_deployment(row: dict[str, Any]) -> dict[str, Any]:
     item = dict(row)
     item["env"] = json_loads(item["env"])
     item["resources"] = json_loads(item["resources"])
-    return item
-
-
-def parse_container(row: dict[str, Any]) -> dict[str, Any]:
-    item = dict(row)
-    item["env"] = json_loads(item["env"])
     return item

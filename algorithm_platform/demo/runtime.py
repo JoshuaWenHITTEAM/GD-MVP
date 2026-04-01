@@ -85,6 +85,7 @@ def provision_debug_session(session_uuid: str) -> None:
 
         prepare_runtime(runtime_dir, version)
         process_pid = start_debug_process(runtime_dir)
+        ensure_process_started(runtime_dir, process_pid, "debug process exited during startup")
         update_debug_session(
             session_uuid,
             debugStatus="RUNNING",
@@ -170,6 +171,7 @@ def run_hot_update_job(hot_update_uuid: str) -> None:
             )
 
         process_pid = restart_debug_process(runtime_dir, session.get("processPid"))
+        ensure_process_started(runtime_dir, process_pid, "debug process exited after hot update")
         update_debug_session(
             session_uuid,
             currentVersionUuid=hot_update["toVersionUuid"],
@@ -190,6 +192,7 @@ def run_hot_update_job(hot_update_uuid: str) -> None:
         rollback_message = str(exc)
         if restore_runtime(runtime_dir):
             process_pid = restart_debug_process(runtime_dir, session.get("processPid"))
+            ensure_process_started(runtime_dir, process_pid, "debug process exited after rollback")
             update_debug_session(
                 session_uuid,
                 currentVersionUuid=hot_update["fromVersionUuid"],
@@ -235,27 +238,23 @@ def require_version(version_uuid: str) -> dict[str, Any] | None:
 
 def ensure_version_snapshot(version: dict[str, Any]) -> Path:
     snapshot_dir = VERSION_SNAPSHOT_ROOT / version["uuid"]
+    if snapshot_dir.exists():
+        shutil.rmtree(snapshot_dir)
     snapshot_dir.mkdir(parents=True, exist_ok=True)
-    write_json(
-        snapshot_dir / "metadata.json",
-        {
-            "versionUuid": version["uuid"],
-            "version": version["version"],
-            "versionName": version["versionName"],
-            "entrypoint": version["entrypoint"],
-            "codePath": version.get("codePath", ""),
-            "configPath": version["configPath"],
-            "publishStatus": version["publishStatus"],
-            "generatedAt": now_iso(),
-        },
-    )
     code_path = Path(version.get("codePath") or "")
     config_path = Path(version.get("configPath") or "")
+    runtime_code_dir = snapshot_dir / "code"
+    runtime_config_path = ""
+
     if code_path.exists():
-        replace_directory(code_path, snapshot_dir / "code")
+        if not code_path.is_dir():
+            raise RuntimeError(f"codePath is not a directory: {code_path}")
+        replace_directory(code_path, runtime_code_dir)
+    elif version.get("codePath"):
+        raise RuntimeError(f"codePath does not exist: {code_path}")
     else:
-        (snapshot_dir / "code").mkdir(parents=True, exist_ok=True)
-        (snapshot_dir / "code" / "main.py").write_text(
+        runtime_code_dir.mkdir(parents=True, exist_ok=True)
+        (runtime_code_dir / "main.py").write_text(
             "\n".join(
                 [
                     f'VERSION_UUID = "{version["uuid"]}"',
@@ -272,10 +271,35 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
             ),
             encoding="utf-8",
         )
-    if config_path.exists() and config_path.is_file():
+    if config_path.exists():
         config_dir = snapshot_dir / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(config_path, config_dir / config_path.name)
+        if config_path.is_dir():
+            target_dir = config_dir / config_path.name
+            replace_directory(config_path, target_dir)
+            runtime_config_path = str(target_dir)
+        else:
+            target_file = config_dir / config_path.name
+            shutil.copy2(config_path, target_file)
+            runtime_config_path = str(target_file)
+    elif version.get("configPath"):
+        raise RuntimeError(f"configPath does not exist: {config_path}")
+
+    write_json(
+        snapshot_dir / "metadata.json",
+        {
+            "versionUuid": version["uuid"],
+            "version": version["version"],
+            "versionName": version["versionName"],
+            "entrypoint": version["entrypoint"],
+            "codePath": version.get("codePath", ""),
+            "configPath": version["configPath"],
+            "runtimeCodePath": str(runtime_code_dir),
+            "runtimeConfigPath": runtime_config_path,
+            "publishStatus": version["publishStatus"],
+            "generatedAt": now_iso(),
+        },
+    )
     return snapshot_dir
 
 
@@ -309,6 +333,29 @@ def start_debug_process(runtime_dir: Path) -> int:
             start_new_session=True,
         )
     return process.pid
+
+
+def ensure_process_started(runtime_dir: Path, pid: int, message: str) -> None:
+    state_path = runtime_dir / "runner_state.json"
+    deadline = time.time() + 2
+    last_status = ""
+    last_error = ""
+    while time.time() < deadline:
+        if state_path.exists():
+            try:
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                state = {}
+            last_status = state.get("status", "")
+            last_error = state.get("error", "")
+            if last_status == "RUNNING" and process_is_alive(pid):
+                return
+            if last_status == "FAILED":
+                raise RuntimeError(last_error or message)
+        if not process_is_alive(pid):
+            raise RuntimeError(last_error or message)
+        time.sleep(0.1)
+    raise RuntimeError(last_error or f"{message} (last status: {last_status or 'unknown'})")
 
 
 def process_is_alive(pid: int) -> bool:
