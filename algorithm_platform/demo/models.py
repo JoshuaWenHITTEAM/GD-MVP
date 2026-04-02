@@ -54,7 +54,10 @@ class UpdateVersionRequest(BaseModel):
     codePath: str | None = None
     configPath: str | None = None
     changelog: str | None = None
-    publishStatus: str | None = None
+    publishStatus: Literal["DRAFT", "PUBLISHED", "OFFLINE"] | None = Field(
+        default=None,
+        description="发布状态，仅支持 DRAFT/PUBLISHED/OFFLINE",
+    )
     sourceType: Literal["registry", "local"] | None = Field(default=None, description="镜像来源类型")
     localImageName: str | None = Field(default=None, description="本地镜像名称")
     imagePullPolicy: Literal["Never", "IfNotPresent", "Always"] | None = Field(

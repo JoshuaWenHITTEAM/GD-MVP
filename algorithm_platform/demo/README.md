@@ -173,6 +173,12 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 - 原独立 `images` 表已经删除
 - 现在“一个版本只对应一个镜像”
 - 如果重新 build 新镜像，应创建新的版本
+- `publishStatus` 当前采用状态机约束：
+  `DRAFT -> PUBLISHED -> OFFLINE -> PUBLISHED`
+- 允许同状态幂等更新
+- 不允许直接 `DRAFT -> OFFLINE`
+- 不允许回退到 `DRAFT`
+- 如果版本仍有活跃部署，不允许从 `PUBLISHED` 切到 `OFFLINE`
 
 ### 3. `deployments`
 
@@ -289,6 +295,12 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 - 创建版本时要直接提交镜像信息
 - 不再有独立镜像接口
+- 新建版本默认状态为 `DRAFT`
+- 只有 `PUBLISHED` 状态的版本允许用于创建部署或切换部署
+- 版本状态流转仅允许：
+  `DRAFT -> PUBLISHED`、
+  `PUBLISHED -> OFFLINE`、
+  `OFFLINE -> PUBLISHED`
 
 ### 部署
 
@@ -304,6 +316,7 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 - 创建部署时传 `versionUuid`
 - 更新部署时可以切换到新的 `versionUuid`
+- 创建部署和切换部署时，目标版本必须是 `PUBLISHED`
 - 这就是当前模型里“发布切换/回滚”的核心动作
 
 ### 构建记录

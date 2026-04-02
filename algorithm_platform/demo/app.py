@@ -47,6 +47,12 @@ ensure_database()
 
 ACTIVE_DEPLOYMENT_STATUSES = ("PENDING", "RUNNING", "UPDATING", "SCALING")
 ACTIVE_DEPLOYMENT_SQL = ", ".join(f"'{status}'" for status in ACTIVE_DEPLOYMENT_STATUSES)
+VERSION_PUBLISH_STATUSES = ("DRAFT", "PUBLISHED", "OFFLINE")
+VERSION_PUBLISH_TRANSITIONS: dict[str, set[str]] = {
+    "DRAFT": {"DRAFT", "PUBLISHED"},
+    "PUBLISHED": {"PUBLISHED", "OFFLINE"},
+    "OFFLINE": {"OFFLINE", "PUBLISHED"},
+}
 
 
 def gen_uuid(prefix: str) -> str:
@@ -95,6 +101,36 @@ def slugify(value: str) -> str:
 def ensure(condition: bool, code: int, message: str) -> None:
     if not condition:
         raise ApiError(code, message)
+
+
+def ensure_publish_status_transition(current_status: str, next_status: str) -> None:
+    ensure(
+        current_status in VERSION_PUBLISH_STATUSES,
+        400,
+        f"unsupported current publishStatus: {current_status}",
+    )
+    ensure(
+        next_status in VERSION_PUBLISH_STATUSES,
+        400,
+        f"unsupported target publishStatus: {next_status}",
+    )
+    ensure(
+        next_status in VERSION_PUBLISH_TRANSITIONS[current_status],
+        400,
+        (
+            "invalid publishStatus transition: "
+            f"{current_status} -> {next_status}; "
+            "allowed transitions are DRAFT->PUBLISHED, PUBLISHED->OFFLINE, OFFLINE->PUBLISHED"
+        ),
+    )
+
+
+def ensure_version_can_be_deployed(version: dict[str, Any]) -> None:
+    ensure(
+        version["publishStatus"] == "PUBLISHED",
+        400,
+        "only PUBLISHED versions can be deployed",
+    )
 
 
 def paginate(items: list[dict[str, Any]], page_num: int, page_size: int) -> dict[str, Any]:
@@ -525,6 +561,14 @@ def update_version(uuid: str, body: UpdateVersionRequest):
     item = require_version(uuid)
 
     payload = body.model_dump(exclude_none=True)
+    if "publishStatus" in payload:
+        ensure_publish_status_transition(item["publishStatus"], payload["publishStatus"])
+        if item["publishStatus"] == "PUBLISHED" and payload["publishStatus"] == "OFFLINE":
+            ensure(
+                not has_active_deployment("versionUuid = ?", (uuid,)),
+                400,
+                "cannot offline version with active deployments",
+            )
     merged_payload = dict(item)
     merged_payload.update(payload)
     merged_payload = resolve_version_payload(merged_payload)
@@ -588,6 +632,7 @@ def delete_version(uuid: str):
 @app.post("/api/v1/deployments")
 def create_deployment(body: CreateDeploymentRequest):
     version = require_version(body.versionUuid)
+    ensure_version_can_be_deployed(version)
     algorithm = require_algorithm(version["algorithmUuid"])
     namespace = body.namespace
     deployment_name = generate_deployment_name(
@@ -688,6 +733,7 @@ def update_deployment(uuid: str, body: UpdateDeploymentRequest):
 
     next_version_uuid = payload.get("versionUuid", row["versionUuid"])
     next_version = require_version(next_version_uuid, "version not found")
+    ensure_version_can_be_deployed(next_version)
     current_version = require_version(row["versionUuid"], "current version not found")
     ensure(
         next_version["algorithmUuid"] == current_version["algorithmUuid"],
