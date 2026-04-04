@@ -10,45 +10,52 @@
     <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <link rel="stylesheet" href="../static/css/p2.css">
+    <link rel="stylesheet" href="../static/css/public.css">
 </head>
 
 <body class="bg-[#020617] text-slate-200 font-sans overflow-hidden h-screen flex flex-col">
     <!-- 顶栏 -->
-    <header
-        class="h-16 border-b border-slate-800 bg-[#020617]/80 backdrop-blur-md flex items-center justify-between px-6 z-50">
-        <div class="flex items-center space-x-4">
-            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span class="iconify text-2xl" data-icon="material-symbols:AppSettingsAltRounded"></span>
-            </div>
-            <div>
-                <h1 class="text-xl font-bold tracking-wider text-white">任务算法链路重构系统 <span
-                        class="text-xs font-normal text-blue-400 ml-2">V4.0 (RL-Enhanced)</span></h1>
-                <p class="text-[10px] text-slate-500 uppercase tracking-widest">Algorithm Chain Reconfiguration
-                    Subsystem</p>
-            </div>
-        </div>
-        <div class="flex items-center space-x-8">
-            <div class="grid grid-cols-3 gap-6 text-sm">
-                <div class="flex flex-col">
-                    <span class="text-slate-500 text-[10px]">当前日期</span>
-                    <span class="font-mono text-blue-400">2026-02-26</span>
+    <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 shrink-0 glass-panel z-10">
+            <div class="flex items-center gap-8"> 
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400"
+                        id="page-title">算法链路重构子系统</h2>
+                    <div class="h-4 w-[1px] bg-slate-700"></div>
                 </div>
-                <div class="flex flex-col">
-                    <span class="text-slate-500 text-[10px]">Agent 状态</span>
-                    <span class="flex items-center text-emerald-400">
-                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
-                        训练中 (Exploring)
-                    </span>
+
+                <nav class="flex items-center gap-1"> 
+                <a href="/" 
+                class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" 
+                id="nav-p1">
+                光电感知算法库
+                </a>
+                <a href="/train" 
+                class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" 
+                id="nav-p2">
+                算法链路重构
+                </a>
+                <a href="/reasoning" 
+                class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" 
+                id="nav-link-item" 
+                id="nav-p3">
+                在线应用
+                </a>
+            </nav>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <div class="relative">
+                    <svg aria-hidden="true" class="iconify text-xl text-slate-400 cursor-pointer iconify--material-symbols" ...>
+                        <path d="..." fill="currentColor"></path>
+                    </svg>
+                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                 </div>
-                <div class="flex flex-col">
-                    <span class="text-slate-500 text-[10px]">链路时延</span>
-                    <span class="font-mono text-amber-400">12.4ms</span>
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-500">当前时间 (CST)</p>
+                    <p class="text-xs font-mono text-sky-400" id="current-time">2026/2/26 10:28:53</p>
                 </div>
             </div>
-            <button
-                class="bg-blue-600/20 border border-blue-500/50 text-blue-400 px-4 py-1 rounded text-sm hover:bg-blue-600 hover:text-white transition-all">安全重置</button>
-        </div>
-    </header>
+        </header>
     <main class="flex-1 flex overflow-hidden relative">
         <!-- 左侧面板：节点状态 -->
         <aside class="w-80 border-r border-slate-800 p-4 flex flex-col space-y-4 bg-slate-900/20 z-40">
@@ -464,6 +471,7 @@
         </div>
     </footer>
     <script src="../static/js/p2.js"></script>
+    <script src="../static/js/public.js"></script>
 </body>
 
 </html>

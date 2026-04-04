@@ -1,0 +1,33 @@
+:root {
+    /* --- 悬停状态颜色 (鼠标移上去) --- */
+    --link-hover-bg: rgba(255, 255, 255, 0.08); /* 半透明白色，适合深色背景 */
+    --link-hover-text: #ffffff;                 /* 悬停时文字变亮 */
+
+    /* --- 激活状态颜色 (当前页面) --- */
+    --link-active-bg: rgba(14, 165, 233, 0.15);  /* 蓝色背景 (sky-500/15) */
+    --link-active-text: #38bdf8;                /* 蓝色文字 (sky-400) */
+    --link-active-border: rgba(14, 165, 233, 0.5); /* 蓝色边框 */
+}
+
+/* 基础样式 */
+.nav-link-item {
+    color: #94a3b8; /* 默认灰色 (slate-400) */
+    border: 1px solid transparent; /* 预留边框位置，防止激活时抖动 */
+    text-decoration: none;
+    display: inline-block;
+}
+
+/* 1. 鼠标移动上去的效果 */
+.nav-link-item:hover {
+    background-color: var(--link-hover-bg);
+    color: var(--link-hover-text);
+}
+
+/* 2. 当前页面的选中效果 */
+.nav-link-item.active {
+    background-color: var(--link-active-bg);
+    color: var(--link-active-text);
+    border-color: var(--link-active-border);
+    /* 增加一个非常淡的发光效果，提升科技感 */
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.1);
+}

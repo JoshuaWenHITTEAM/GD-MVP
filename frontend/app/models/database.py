@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
 # 数据库连接配置
-DATABASE_URL = "postgresql://postgres:123456@localhost:5432/algorithm_db"
+DATABASE_URL = "postgresql://postgres:053542@localhost:5432/algorithm_db"
 
 # 创建引擎（PostgreSQL）
 engine = create_engine(
