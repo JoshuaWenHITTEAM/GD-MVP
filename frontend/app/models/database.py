@@ -6,7 +6,7 @@ from datetime import datetime
 # 数据库连接配置
 DATABASE_URL = "postgresql://postgres:053542@localhost:5432/algorithm_db"
 
-# 创建引擎（PostgreSQL）
+# 创建引擎
 engine = create_engine(
     DATABASE_URL,
     pool_size=10,
