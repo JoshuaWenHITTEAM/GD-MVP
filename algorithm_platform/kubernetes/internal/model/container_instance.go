@@ -1,7 +1,7 @@
 package model
 
 type ContainerInstance struct {
-	AlgorithmVersionID uint64 `json:"algorithmVersionId,omitempty"`
+	VersionUUID string `json:"versionUuid,omitempty"`
 
 	Name       string `json:"name"`
 	Namespace  string `json:"namespace"`
