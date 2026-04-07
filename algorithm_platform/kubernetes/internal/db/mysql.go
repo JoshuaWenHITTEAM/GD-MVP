@@ -33,7 +33,11 @@ func InitMySQL(cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("mysql connect err: %v", err)
 	}
-	if err := db.AutoMigrate(&model.DeployRecord{}); err != nil {
+
+	if err := db.AutoMigrate(
+		&model.AlgorithmVersion{},
+		&model.DeployRecord{},
+	); err != nil {
 		return fmt.Errorf("mysql migrate err: %v", err)
 	}
 
