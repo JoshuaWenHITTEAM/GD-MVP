@@ -170,3 +170,57 @@ func (h *Handler) InferContainer(context *gin.Context) {
 
 	context.Data(http.StatusOK, "application/json; charset = utf-8", raw)
 }
+
+func (h *Handler) UpdateContainerImage(context *gin.Context) {
+	name := context.Param("name")
+	namespace := context.DefaultQuery("namespace", "default")
+
+	var req model.UpdateImageRequest
+	if err := context.ShouldBindJSON(&req); err != nil {
+		common.Fail(context, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.Image == "" {
+		common.Fail(context, http.StatusBadRequest, "image is required")
+		return
+	}
+
+	if err := h.containerSvc.UpdateImage(name, namespace, req.Image); err != nil {
+		common.Fail(context, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	common.Success(context, gin.H{
+		"deploymentName": name,
+		"namespace":      namespace,
+		"image":          req.Image,
+	})
+}
+
+func (h *Handler) UpdateContainerVersion(context *gin.Context) {
+	name := context.Param("name")
+	namespace := context.DefaultQuery("namespace", "default")
+
+	var req model.UpdateVersionRequest
+	if err := context.ShouldBindJSON(&req); err != nil {
+		common.Fail(context, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.VersionUUID == "" {
+		common.Fail(context, http.StatusBadRequest, "versionUuid is required")
+		return
+	}
+
+	if err := h.containerSvc.UpdateVersion(name, namespace, req.VersionUUID); err != nil {
+		common.Fail(context, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	common.Success(context, gin.H{
+		"deploymentName": name,
+		"namespace":      namespace,
+		"versionUuid":    req.VersionUUID,
+	})
+}
