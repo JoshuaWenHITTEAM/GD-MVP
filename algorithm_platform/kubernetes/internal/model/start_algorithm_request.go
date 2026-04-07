@@ -1,8 +1,7 @@
 package model
 
 type StartAlgorithmRequest struct {
-	AlgorithmVersionID uint64 `json:"algorithmVersionId"`
-	ImageID            uint64 `json:"imageId"`
+	VersionUUID string `json:"versionUuid"`
 
 	Name           string `json:"name"`
 	Version        string `json:"version"`
@@ -22,4 +21,8 @@ type StartAlgorithmRequest struct {
 
 	EnablePDB    bool  `json:"enablePDB"`
 	MinAvailable int32 `json:"minAvailable"`
+
+	DevMode       bool   `json:"devMode"`
+	CodeHostPath  string `json:"codeHostPath"`
+	ModelHostPath string `json:"modelHostPath"`
 }
