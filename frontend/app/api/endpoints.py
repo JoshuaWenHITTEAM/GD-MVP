@@ -1,9 +1,16 @@
 # app/api/endpoints.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.models.schemas import AlgorithmRegister, AlgorithmResponse
 from app.models.database import get_db, AlgorithmModel
+from sse_starlette.sse import EventSourceResponse
+import json
+import asyncio
+import uuid
+
+# 注意：下方为假想逻辑，等待数据链路部分具体实现后再完善
+from app.services.training_service import training_service
 
 # 创建 APIRouter 实例，用于分组管理路由（例如 web 相关的路由）
 router = APIRouter()
@@ -11,6 +18,10 @@ router = APIRouter()
 @router.get("/test")
 async def test_api():
     return {"status": "success", "message": "API 接口已连通"}
+
+#==============================
+#           p1部分接口
+#==============================
 
 @router.post("/algorithm/register", response_model=AlgorithmResponse, tags=["算法管理"])
 async def register_algorithm(
@@ -147,3 +158,49 @@ async def search_algorithms(
     # 按创建时间倒序
     results = query.order_by(AlgorithmModel.created_at.desc()).all()
     return results
+#==================================
+#           p2部分接口
+#==================================
+
+# sessions接口需要进一步探讨传参
+# 等待完善！
+@router.post("/v1/agent-training/sessions")
+async def start_training(request: Request, background_tasks: BackgroundTasks):
+    """启动训练任务"""
+    # 这里是参数获取占位
+    # body = await request.json()
+    params_placeholder = {"info": "此处以后放置 P1 传来的算法 UUID"}
+    
+    session_id = training_service.create_session()
+    
+    # 后台执行
+    background_tasks.add_task(training_service.start_training_logic, session_id, params_placeholder)
+    
+    return {"session_id": session_id, "status": "started"}
+
+@router.post("/v1/agent-training/sessions/{session_id}/stop")
+async def stop_training(session_id: str):
+    """停止训练任务"""
+    success = training_service.stop_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="未找到该训练任务")
+    return {"message": "停止指令已发送", "session_id": session_id}
+
+@router.get("/v1/agent-training/sessions/{session_id}/events")
+async def sse_stream(session_id: str, request: Request):
+    """SSE 日志流"""
+    queue = training_service.get_queue(session_id)
+    if not queue:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    async def event_generator():
+        while True:
+            if await request.is_disconnected():
+                break
+            data = await queue.get()
+            if data == "EOF":
+                break
+            json_data = json.dumps(data, ensure_ascii=False)
+            yield {"data": json_data}
+
+    return EventSourceResponse(event_generator())

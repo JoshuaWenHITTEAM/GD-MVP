@@ -16,46 +16,45 @@
 <body class="bg-[#020617] text-slate-200 font-sans overflow-hidden h-screen flex flex-col">
     <!-- 顶栏 -->
     <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 shrink-0 glass-panel z-10">
-            <div class="flex items-center gap-8"> 
-                <div class="flex items-center gap-4">
-                    <h2 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400"
-                        id="page-title">算法链路重构子系统</h2>
-                    <div class="h-4 w-[1px] bg-slate-700"></div>
-                </div>
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-4">
+                <h2 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400"
+                    id="page-title">算法链路重构子系统</h2>
+                <div class="h-4 w-[1px] bg-slate-700"></div>
+            </div>
 
-                <nav class="flex items-center gap-1"> 
-                <a href="/" 
-                class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" 
-                id="nav-p1">
-                光电感知算法库
+            <nav class="flex items-center gap-1">
+                <a href="/" class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                    id="nav-p1">
+                    光电感知算法库
                 </a>
-                <a href="/train" 
-                class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" 
-                id="nav-p2">
-                算法链路重构
+                <a href="/train"
+                    class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                    id="nav-p2">
+                    算法链路重构
                 </a>
-                <a href="/reasoning" 
-                class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" 
-                id="nav-link-item" 
-                id="nav-p3">
-                在线应用
+                <a href="/reasoning"
+                    class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                    id="nav-link-item" id="nav-p3">
+                    在线应用
                 </a>
             </nav>
-            </div>
+        </div>
 
-            <div class="flex items-center gap-6">
-                <div class="relative">
-                    <svg aria-hidden="true" class="iconify text-xl text-slate-400 cursor-pointer iconify--material-symbols" ...>
-                        <path d="..." fill="currentColor"></path>
-                    </svg>
-                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] text-slate-500">当前时间 (CST)</p>
-                    <p class="text-xs font-mono text-sky-400" id="current-time">2026/2/26 10:28:53</p>
-                </div>
+        <div class="flex items-center gap-6">
+            <div class="relative">
+                <svg aria-hidden="true" class="iconify text-xl text-slate-400 cursor-pointer iconify--material-symbols"
+                    ...>
+                    <path d="..." fill="currentColor"></path>
+                </svg>
+                <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </div>
-        </header>
+            <div class="text-right">
+                <p class="text-[10px] text-slate-500">当前时间 (CST)</p>
+                <p class="text-xs font-mono text-sky-400" id="current-time">2026/2/26 10:28:53</p>
+            </div>
+        </div>
+    </header>
     <main class="flex-1 flex overflow-hidden relative">
         <!-- 左侧面板：节点状态 -->
         <aside class="w-80 border-r border-slate-800 p-4 flex flex-col space-y-4 bg-slate-900/20 z-40">
@@ -94,27 +93,14 @@
                     </div>
                 </div>
             </div>
-            <div class="flex-1 overflow-hidden flex flex-col">
+            <div class="flex-1 overflow-hidden flex flex-col mt-4">
                 <h3 class="flex items-center text-sm font-semibold mb-3">
                     <span class="iconify mr-2 text-blue-400" data-icon="material-symbols:history"></span>
                     Agent 决策历史
                 </h3>
-                <div class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                    <div class="text-[11px] p-2 bg-blue-500/5 border-l-2 border-blue-500 text-slate-300">
-                        <span class="text-blue-400">[14:20:11]</span> 检测到环境光照突变，触发链路重构动作...
-                    </div>
-                    <div class="text-[11px] p-2 bg-emerald-500/5 border-l-2 border-emerald-500 text-slate-300">
-                        <span class="text-emerald-400">[14:20:12]</span> 确认：预处理节点替换为 [HDR_Enhance_v2]
-                    </div>
-                    <div class="text-[11px] p-2 bg-slate-800/40 border-l-2 border-slate-600 text-slate-400 font-mono">
-                        <span class="text-slate-500">[14:20:15]</span> Reward Update: +12.5 (Accuracy Gain)
-                    </div>
-                    <div class="text-[11px] p-2 bg-slate-800/40 border-l-2 border-slate-600 text-slate-400">
-                        <span class="text-slate-500">[14:21:05]</span> 定时链路验证：所有节点握手成功
-                    </div>
-                    <div class="text-[11px] p-2 bg-amber-500/5 border-l-2 border-amber-500 text-slate-300">
-                        <span class="text-amber-400">[14:22:30]</span> 警报：检测时延超过阈值，正在搜索最优策略...
-                    </div>
+                <!-- 这里加上 id: agent-log-container，并清空内部静态内容 -->
+                <div id="agent-log-container" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    <!-- 动态日志将插入到这里 -->
                 </div>
             </div>
         </aside>
@@ -394,15 +380,18 @@
             <!-- 浮动操作提示 -->
             <div
                 class="absolute bottom-6 left-1/2 -translate-x-1/2 flex space-x-4 bg-slate-900/80 border border-slate-700 p-2 rounded-lg backdrop-blur-sm shadow-2xl z-40">
-                <button
-                    class="flex items-center space-x-2 px-4 py-2 bg-blue-600 rounded text-sm font-medium hover:bg-blue-500 transition-colors">
+                <button 
+                    id="start-train-btn"
+                    class="flex items-center space-x-2 px-4 py-2 bg-blue-600 rounded text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     <span class="iconify" data-icon="material-symbols:play-arrow"></span>
                     <span>立即开始重构演训</span>
                 </button>
-                <button
-                    class="flex items-center space-x-2 px-4 py-2 bg-slate-800 rounded text-sm font-medium hover:bg-slate-700 transition-colors border border-slate-600">
-                    <span class="iconify" data-icon="material-symbols:auto-videocam"></span>
-                    <span>全链路可视化</span>
+                <button 
+                    id="stop-train-btn"
+                    disabled
+                    class="flex items-center space-x-2 px-4 py-2 bg-slate-800 rounded text-sm font-medium hover:bg-slate-700 transition-colors border border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="iconify" data-icon="material-symbols:stop-circle-outline"></span>
+                    <span>终止训练任务</span>
                 </button>
             </div>
         </section>
