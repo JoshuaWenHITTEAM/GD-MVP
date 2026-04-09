@@ -1,6 +1,6 @@
 # Algorithm Platform Demo Backend
 
-基于 FastAPI + SQLite 的算法平台后端 Demo。
+基于 FastAPI + MySQL 的算法平台后端 Demo。
 
 当前版本的数据模型已经收敛为：
 
@@ -23,16 +23,11 @@
 - [app.py](/home/lurunda/GD-MVP/algorithm_platform/demo/app.py)
   API 入口与主要业务逻辑
 - [db.py](/home/lurunda/GD-MVP/algorithm_platform/demo/db.py)
-  SQLite 表结构、初始化与种子数据
+  MySQL 表结构、初始化与种子数据
 - [models.py](/home/lurunda/GD-MVP/algorithm_platform/demo/models.py)
   请求模型定义
 - [requirements.txt](/home/lurunda/GD-MVP/algorithm_platform/demo/requirements.txt)
   Python 依赖
-- [demo.db](/home/lurunda/GD-MVP/algorithm_platform/demo/demo.db)
-  SQLite 数据库文件
-
-说明：
-
 - `runtime.py` 和 `scripts/` 目录仍保留在仓库中
 - 但它们不再是当前主流程的一部分
 - 当前主模型仅围绕 `algorithms / versions / deployments / build_records`
@@ -44,6 +39,7 @@
 - `fastapi>=0.110,<1.0`
 - `uvicorn>=0.27,<1.0`
 - `pydantic>=2.0,<3.0`
+- `pymysql>=1.1,<2.0`
 
 建议 Python 版本：
 
@@ -55,6 +51,16 @@
 cd /home/lurunda/GD-MVP/algorithm_platform/demo
 python3 -m pip install -r requirements.txt
 ```
+
+默认 MySQL 连接参数与容器管理系统保持一致：
+
+- `DEMO_DB_HOST=127.0.0.1`
+- `DEMO_DB_PORT=3306`
+- `DEMO_DB_USER=lurunda`
+- `DEMO_DB_PASSWORD=G7v!Q2m#L9x@R4pZ`
+- `DEMO_DB_NAME=algo_manager`
+
+如需覆盖，可通过环境变量传入。
 
 ## 运行方式
 
@@ -78,13 +84,15 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 注意：
 
+- 服务启动前需要保证 MySQL 服务可用
 - 服务启动时会执行 `ensure_database()`
-- 当 `SCHEMA_VERSION` 变化时，数据库会被重建
+- 会自动创建数据库 `algo_manager`（或 `DEMO_DB_NAME` 指定的库）
+- 当 `SCHEMA_VERSION` 变化时，仅会重建 demo 自己管理的表，不影响同库中的其他业务表
 - schema 升级时 demo 数据会被清空并重新写入种子数据
 
 当前 schema 版本：
 
-- `2026-04-01-build-records-only`
+- `2026-04-09-mysql`
 
 ## 数据库表结构与用途
 

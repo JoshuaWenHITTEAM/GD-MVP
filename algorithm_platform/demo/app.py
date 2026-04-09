@@ -32,7 +32,7 @@ from models import (
 app = FastAPI(
     title="光电感知系统 Demo Backend",
     version="0.6.0",
-    description="按 Apifox 导出文档整理的 Python/FastAPI demo 后端，使用 SQLite 持久化存储",
+    description="按 Apifox 导出文档整理的 Python/FastAPI demo 后端，使用 MySQL 持久化存储",
 )
 
 app.add_middleware(
