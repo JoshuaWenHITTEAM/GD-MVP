@@ -99,16 +99,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 辅助函数：切换按钮状态
     function setUIState(running) {
+        const sBtn = document.getElementById('start-train-btn');
+        const tBtn = document.getElementById('stop-train-btn');
         if (running) {
-            startBtn.disabled = true;
-            startBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            stopBtn.disabled = false;
-            stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            sBtn.disabled = true;
+            sBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            tBtn.disabled = false;
+            tBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         } else {
-            startBtn.disabled = false;
-            startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            stopBtn.disabled = true;
-            stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            sBtn.disabled = false;
+            sBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-700'); // 顺便移除背景色
+            tBtn.disabled = true;
+            tBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
     }
 
@@ -166,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 点击“开始”按钮
     startBtn.onclick = async () => {
         // 1. 禁用按钮防止重复点击
-        startBtn.disabled = true;
+        setUIState(true);
         startBtn.classList.add('bg-slate-700');
         
         // 2. 清空之前的日志
@@ -189,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             eventSource.onmessage = (event) => {
                 // console.log("收到的原始数据:", event.data); // DEBUG用
                 // const logData = JSON.parse(event.data);
-                 // 如果数据已经是对象（由于某些库的自动处理），就不解析
+                // 如果数据已经是对象（由于某些库的自动处理），就不解析
                 const logData = typeof event.data === 'object' ? event.data : JSON.parse(event.data);
                 appendLog(logData);
                 if (['success', 'failed', 'terminated'].includes(logData.status)) {
