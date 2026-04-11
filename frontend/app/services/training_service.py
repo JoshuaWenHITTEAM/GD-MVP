@@ -26,38 +26,66 @@ class TrainingService:
         return session_id
 
     async def start_training_logic(self, session_id: str, config_params: dict):
-        # 组链对接部分 占位
         session = self.active_sessions.get(session_id)
         queue = session["queue"]
         stop_event = session["stop_event"]
 
-        try:
-            # --- 算法组链占位开始 ---
-            # 这里的 config_params 就是从 POST 接口传进来的算法 UUID 等信息
-            await queue.put({"event": "log", "message": f"正在根据配置启动组链: {config_params}"})
-            
-            # 模拟一个长时间的循环训练过程
-            for i in range(1, 101):
-                # 关键：每一轮循环都要检查一下用户是否点了“停止”
-                if stop_event.is_set():
-                    await queue.put({"event": "log", "status": "terminated", "message": "检测到用户停止指令，正在清理退出..."})
-                    return
+        # 封装一个发送函数，减少重复代码
+        async def send_event(event, status, message, algo="", ver="", seq=0):
+            await queue.put({
+                "session_id": session_id,
+                "ts": datetime.datetime.now().strftime("%H:%M:%S"),
+                "seq": seq,
+                "status": status,
+                "event": event,
+                "message": message,
+                "algo_name": algo,
+                "version": ver
+            })
 
-                await asyncio.sleep(1) # 模拟算法耗时
-                await queue.put({
-                    "session_id": session_id,
-                    "ts": datetime.datetime.now().strftime("%H:%M:%S"),
-                    "seq": i,
-                    "status": "running",
-                    "event": "log",
-                    "message": f"正在执行第 {i}/100 轮训练迭代..."
-                })
-            # --- 算法组对接占位结束 ---
+        # 【核心逻辑】：定义一个内部函数来快速检查停止信号并通知前端
+        async def check_stop():
+            if stop_event.is_set():
+                # 发送给控制台看的日志
+                await send_event("log", "terminated", "⚠️ 【系统提示】用户手动终止了重构任务，正在清理环境并退出...")
+                return True
+            return False
+
+        try:
+            # --- 阶段 1: 预处理 (MODULE_01) ---
+            await send_event("switch_module01", "running", "Agent 正在决策：载入预处理算子...", "C2PNet_v2", "v1.2.0", 1)
+            await asyncio.sleep(2) 
+            if await check_stop(): return # 修改这里：检查并通知
+
+            await send_event("switch_module01", "completed", "预处理模块任务完成，链路输出正常。", "C2PNet_v2", "v1.2.0", 2)
+            await asyncio.sleep(1)
+            if await check_stop(): return # 每一个 sleep 后都检查一下
+
+            # --- 阶段 2: 目标检测 (MODULE_02) ---
+            await send_event("switch_module02", "running", "Agent 正在决策：切换 YOLO 检测头...", "YOLO_X_Small", "v5.0", 3)
+            await asyncio.sleep(3) 
+            if await check_stop(): return # 修改这里
+
+            await send_event("switch_module02", "completed", "目标检测重构项校准完成，精度达标。", "YOLO_X_Small", "v5.0", 4)
+            await asyncio.sleep(1)
+            if await check_stop(): return
+
+            # --- 阶段 3: 目标跟踪 (MODULE_03) ---
+            await send_event("switch_module03", "running", "Agent 正在决策：启用自适应跟踪算法...", "BoT_SORT", "v2.1", 5)
+            await asyncio.sleep(2)
+            if await check_stop(): return # 修改这里
+
+            await send_event("switch_module03", "completed", "跟踪模块初始化成功，Agent 组链训练结束。", "BoT_SORT", "v2.1", 6)
             
-            await queue.put({"event": "log", "status": "success", "message": "训练任务圆满完成！"})
+            # --- 最终正常结束 ---
+            await asyncio.sleep(1)
+            await send_event("log", "success", "所有阶段已完成，新模型文件已存储。", "", "", 7)
+
         except Exception as e:
-            await queue.put({"event": "log", "status": "failed", "message": f"意外错误: {str(e)}"})
+            await send_event("log", "failed", f"发生意外错误: {str(e)}", status="failed")
         finally:
+            # 无论正常结束还是 return 退出，都会执行这里，通知前端 SSE 断开
+            await asyncio.sleep(0.5) # 确保前面最后一条消息能被前端接收
             await queue.put("EOF")
 
     def stop_session(self, session_id: str):

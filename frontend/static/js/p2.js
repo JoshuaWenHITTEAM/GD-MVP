@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentSessionId = null;
     let eventSource = null;
+    let isExpectedClose = false;
 
     // 辅助函数：切换按钮状态
     function setUIState(running) {
@@ -112,6 +113,31 @@ document.addEventListener('DOMContentLoaded', () => {
             tBtn.disabled = true;
             tBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
+    }
+
+    function resetCards() {
+        const ids = ['01', '02', '03'];
+        ids.forEach(id => {
+            // 1. 恢复状态标签样式和文字
+            const statusEl = document.getElementById(`status-${id}`);
+            if (statusEl) {
+                statusEl.className = "text-[10px] py-0.5 px-2 bg-slate-500/20 text-slate-400 rounded";
+                statusEl.textContent = "等待中";
+            }
+
+            // 2. 恢复算法名称文字和样式
+            const algoEl = document.getElementById(`algo-${id}`);
+            if (algoEl) {
+                algoEl.textContent = "待载入";
+                algoEl.className = "text-slate-500";
+            }
+
+            // 3. 隐藏版本信息
+            const verEl = document.getElementById(`ver-${id}`);
+            if (verEl) {
+                verEl.classList.add('opacity-0');
+            }
+        });
     }
 
     // 辅助函数：根据 status 和 event 返回对应的 Tailwind 颜色类
@@ -168,8 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 点击“开始”按钮
     startBtn.onclick = async () => {
         // 1. 禁用按钮防止重复点击
+        resetCards(); // 重置所有卡片 UI
         setUIState(true);
         startBtn.classList.add('bg-slate-700');
+
         
         // 2. 清空之前的日志
         logContainer.innerHTML = '<div class="text-[11px] text-slate-500 italic">正在建立与 Agent 的连接...</div>';
@@ -189,19 +217,76 @@ document.addEventListener('DOMContentLoaded', () => {
             eventSource = new EventSource(`/api/v1/agent-training/sessions/${currentSessionId}/events`);
 
             eventSource.onmessage = (event) => {
-                // console.log("收到的原始数据:", event.data); // DEBUG用
-                // const logData = JSON.parse(event.data);
-                // 如果数据已经是对象（由于某些库的自动处理），就不解析
-                const logData = typeof event.data === 'object' ? event.data : JSON.parse(event.data);
-                appendLog(logData);
-                if (['success', 'failed', 'terminated'].includes(logData.status)) {
-                    closeConnection(); 
+                try {
+                    const data = JSON.parse(event.data);
+                    appendLog(data);
+
+                    // 识别指令
+                    if (data.event === 'switch_module01') updateCardUI('01', data);
+                    if (data.event === 'switch_module02') updateCardUI('02', data);
+                    if (data.event === 'switch_module03') updateCardUI('03', data);
+
+                    if (['success', 'failed', 'terminated'].includes(data.status)) {
+                        isExpectedClose = true;
+                        setTimeout(() => {
+                            closeConnection(); // 关闭连接，恢复按钮状态
+                        }, 500);
+                    }
+                } catch (e) {
+                    console.error("解析错误", e);
                 }
             };
 
+            /**
+             * 通用的卡片更新函数
+             * @param {string} index - '01', '02', 或 '03'
+             * @param {object} data - 后端传来的 JSON 对象
+             */
+            function updateCardUI(index, data) {
+                const statusEl = document.getElementById(`status-${index}`);
+                const algoEl = document.getElementById(`algo-${index}`);
+                const verEl = document.getElementById(`ver-${index}`);
+
+                if (!statusEl) return;
+
+                // 更新文字内容（如果有传的话）
+                if (data.algo_name) algoEl.textContent = data.algo_name;
+                if (data.version) {
+                    verEl.textContent = data.version;
+                    verEl.classList.remove('opacity-0');
+                }
+
+                // 根据 status 切换样式
+                if (data.status === 'running') {
+                    // 运行中：蓝色 + 呼吸灯动画
+                    statusEl.className = "text-[10px] py-0.5 px-2 bg-blue-500/20 text-blue-400 rounded animate-pulse";
+                    statusEl.textContent = "运行中";
+                    algoEl.className = "text-blue-400 font-bold";
+                } else if (data.status === 'completed') {
+                    // 已完成：绿色
+                    statusEl.className = "text-[10px] py-0.5 px-2 bg-emerald-500/20 text-emerald-400 rounded";
+                    statusEl.textContent = "已完成";
+                    algoEl.className = "text-emerald-400 font-bold";
+                } else {
+                    // 其他情况（如等待中）
+                    statusEl.className = "text-[10px] py-0.5 px-2 bg-slate-500/20 text-slate-400 rounded";
+                    statusEl.textContent = "等待中";
+                }
+            }
+
             eventSource.onerror = (err) => {
-                appendLog({ ts: 'Error', message: '日志流连接中断', status: 'failed' });
-                closeConnection();
+                if (!isExpectedClose) {
+                    console.error("SSE 异常中断");
+                    appendLog({ 
+                        ts: new Date().toLocaleTimeString(), 
+                        message: '与服务器的日志连接异常中断', 
+                        status: 'failed' 
+                    });
+                }
+                
+                if (!isExpectedClose) {
+                    closeConnection();
+                }
             };
 
         } catch (error) {
@@ -238,6 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closeConnection() {
         if (eventSource) {
+            isExpectedClose = true;
             eventSource.close();
             eventSource = null;
         }
