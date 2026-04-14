@@ -139,6 +139,7 @@ function initCharts() {
 }
 
 // 提交算法注册
+let currentAlgorithmId = null;  // 存储第一步注册成功的算法ID
 async function submitAlgorithm() {
     // 获取表单数据
     const formData = {
@@ -174,8 +175,9 @@ async function submitAlgorithm() {
 
         if (response.ok) {
             alert(`算法注册成功！\nID: ${result.id}\n名称：${result.name}`);
+            currentAlgorithmId = result.id;
             // 可以在这里跳转到下一步或清空表单
-            console.log('注册成功:', result);
+            console.log('注册成功，算法ID及信息：', currentAlgorithmId,result);
             // 注册成功后刷新算法列表（如果列表页正在显示）
             loadAlgorithmList();
         } else {
@@ -369,6 +371,7 @@ function renderAlgorithmList(algorithms) {
                                 ${alg.algorithm_type === 'Deep Learning' ? '学习方法' : '传统方法'}
                             </span>
                             <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border">已注册</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-400 border">版本数：${alg.versions.length}</span>
                         </div>
                         <p class="text-sm text-slate-500 mt-1 max-w-2xl">${escapeHtml(alg.description) || '暂无描述'}</p>
                         <div class="flex items-center gap-4 mt-3 text-[11px] text-slate-500 italic">
@@ -387,6 +390,90 @@ function renderAlgorithmList(algorithms) {
         </div>
     `).join('');
 }
+
+//镜像文件上传函数
+async function uploadAlgorithmFile() {
+    const fileInput = document.getElementById('algo-file');
+    const ruleSelect = document.getElementById('validation-rule');
+    const versionInput = document.getElementById('version-number');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert('请选择一个文件');
+        return;
+    }
+    if (!currentAlgorithmId) {
+        alert('请先完成第一步算法注册');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('rule', ruleSelect.value);
+    if (versionInput.value.trim()) {
+        formData.append('version_number', versionInput.value.trim());
+    }
+
+    try {
+        const response = await fetch(`/api/algorithm/upload-file/${currentAlgorithmId}`, {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (response.ok) {
+            alert(`文件上传成功！\n版本号：${result.version}\n路径：${result.file_path}`);
+            // 可选：清空文件选择
+            fileInput.value = '';
+            versionInput.value = '';
+            // 跳转到算法检索页查看更新
+            switchPage('query');
+        } else {
+            alert(`上传失败：${result.detail}`);
+        }
+    } catch (error) {
+        console.error(error);
+        alert('网络错误，请稍后重试');
+    }
+}
+
+window.onload = () => {
+    initCharts();
+    // 绑定文件上传按钮
+    const submitBtn = document.getElementById('submit-upload');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', uploadAlgorithmFile);
+    }
+    const cancelBtn = document.getElementById('cancel-upload');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            // 取消注册逻辑：清空第一步表单和当前ID
+            resetForm();
+            currentAlgorithmId = null;
+            document.getElementById('algo-file').value = '';
+            alert('已取消注册');
+        });
+    }
+     //文件选择监听：
+    const fileInput = document.getElementById('algo-file');
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            const statusSpan = document.getElementById('file-status');
+            if (e.target.files.length > 0) {
+                statusSpan.textContent = `已选择：${e.target.files[0].name}`;
+                statusSpan.classList.remove('text-slate-400');
+                statusSpan.classList.add('text-sky-400');
+            } else {
+                statusSpan.textContent = '未选择文件';
+                statusSpan.classList.add('text-slate-400');
+                statusSpan.classList.remove('text-sky-400');
+            }
+        });
+    }
+
+    //热更新保存
+    const saveBtn = document.getElementById('save-hot-update');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveHotUpdate);
+    }
+};
 
 function editAlgorithm(id) {
     // 跳转到编辑器页面，并传递算法ID
@@ -415,5 +502,73 @@ async function searchAlgorithms() {
     } catch (error) {
         console.error(error);
         alert('搜索失败，请稍后重试');
+    }
+}
+
+//加载算法文件内容到编辑器
+async function loadAlgorithmToEditor(id) {
+    try {
+        const response = await fetch(`/api/algorithm/${id}/file-content`);
+        if (!response.ok) {
+            const err = await response.json();
+            alert(`无法加载文件内容：${err.detail}`);
+            return;
+        }
+        const data = await response.json();
+        // 填充编辑器
+        document.getElementById('code-editor').value = data.content;
+        document.getElementById('editor-filename').innerText = data.filename;
+        document.getElementById('editor-algo-name').innerText = `${data.algorithm_name} (v${data.algorithm_version})`;
+        // 保存当前编辑的算法ID到全局变量，用于保存
+        window.currentEditAlgorithmId = id;
+    } catch (error) {
+        console.error(error);
+        alert('加载文件内容失败');
+    }
+}
+
+//算法代码热更新并保存
+async function saveHotUpdate() {
+    const algorithmId = window.currentEditAlgorithmId;
+    if (!algorithmId) {
+        alert('未选中任何算法');
+        return;
+    }
+    const codeContent = document.getElementById('code-editor').value;
+    if (!codeContent.trim()) {
+        alert('文件内容不能为空');
+        return;
+    }
+
+    // 询问用户是否指定版本号（可选）
+    let versionNumber = prompt("请输入新版本号（例如 v1.0.1），留空则自动生成：");
+    // 将代码内容转为 File 对象
+    const blob = new Blob([codeContent], { type: 'text/plain' });
+    const file = new File([blob], document.getElementById('editor-filename').innerText, { type: 'text/plain' });
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('rule', 'none');   // 热更新时跳过内容校验，或根据需要选择规则
+    if (versionNumber && versionNumber.trim()) {
+        formData.append('version_number', versionNumber.trim());
+    }
+    try {
+        const response = await fetch(`/api/algorithm/upload-file/${algorithmId}`, {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (response.ok) {
+            alert(`热更新成功！新版本号：${result.version}\n文件路径：${result.file_path}`);
+            // 可选：跳转到算法检索页
+            switchPage('query');
+            // 刷新列表
+            loadAlgorithmList();
+        } else {
+            alert(`保存失败：${result.detail}`);
+        }
+    } catch (error) {
+        console.error(error);
+        alert('网络错误，请稍后重试');
     }
 }

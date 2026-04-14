@@ -907,7 +907,7 @@
                                 </button>
                                 <button onclick="submitAlgorithm()"
                                     class="px-8 py-3 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold transition flex items-center gap-2">
-                                    <span>下一步：上传代码</span>
+                                    <span>确认注册算法</span>
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
@@ -926,27 +926,55 @@
                                     </div>
                                 </div>
                                 <div class="space-y-6">
+                                     <!-- 文件上传 -->
                                     <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2 font-mono">镜像路径
-                                            (Image
-                                            Registry Path) *</label>
-                                        <div class="flex gap-3">
-                                            <input
-                                                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sky-400 outline-none"
-                                                type="text" value="registry.internal.ai/v2/models/yolov8_base:latest" />
-                                            <button
-                                                class="bg-indigo-600 px-6 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-500 transition-colors">
-                                                <svg aria-hidden="true" class="iconify iconify--material-symbols"
-                                                    data-icon="material-symbols:cloud-download-outline" height="1em"
-                                                    role="img" viewbox="0 0 24 24" width="1em"
-                                                    xmlns="http://www.w3.org/2000/svg">
-                                                    <path
-                                                        d="M6.5 20q-2.275 0-3.887-1.575T1 14.575q0-1.95 1.175-3.475T5.25 9.15q.425-1.8 2.125-3.425T11 4.1q.825 0 1.413.588T13 6.1v6.05l1.6-1.55L16 12l-4 4l-4-4l1.4-1.4l1.6 1.55V6.1q-1.9.35-2.95 1.838T7 11h-.5q-1.45 0-2.475 1.025T3 14.5t1.025 2.475T6.5 18h12q1.05 0 1.775-.725T21 15.5t-.725-1.775T18.5 13H17v-2q0-1.2-.55-2.238T15 7V4.675q1.85.875 2.925 2.588T19 11q1.725.2 2.863 1.488T23 15.5q0 1.875-1.312 3.188T18.5 20zm5.5-8.95"
-                                                        fill="currentColor"></path>
-                                                </svg> 校验镜像
-                                            </button>
+                                        <label class="block text-sm font-semibold text-slate-300 mb-2">镜像路径上传(Image Registry Path) *</label>
+                                        <div class="flex items-center gap-4">
+                                            <input type="file" id="algo-file" accept=".json,.py" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm">
+                                            <span id="file-status" class="text-xs text-slate-400"></span>
                                         </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-300 mb-2">版本号（可选，不填自动生成）</label>
+                                        <input type="text" id="version-number" placeholder="例如 v1.0.0" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3">
                                     </div>
+                                    </div>
+                                    <!-- 校验规则 -->
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-300 mb-2">校验规则</label>
+                                        <select id="validation-rule" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3">
+                                            <option value="json_schema">JSON Schema 校验（包含 model_name, version, input_shape）</option>
+                                            <option value="python_syntax">Python 语法校验</option>
+                                            <option value="none">仅检查非空</option>
+                                        </select>
+                                    </div>
+                                    <!-- 提交按钮 -->
+                                    <div class="flex justify-end gap-4 pt-4 border-t border-slate-800">
+                                        <button id="cancel-upload" class="px-8 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition-all text-sm">取消注册</button>
+                                        <button id="submit-upload" class="px-8 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 rounded-lg font-bold shadow-lg shadow-sky-900/40 hover:scale-105 transition-all">提交并生成UUID</button>
+                                    </div>
+
+<!--                                    <div>-->
+<!--                                        <label class="block text-sm font-semibold text-slate-300 mb-2 font-mono">镜像路径-->
+<!--                                            (Image-->
+<!--                                            Registry Path) *</label>-->
+<!--                                        <div class="flex gap-3">-->
+<!--                                            <input-->
+<!--                                                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sky-400 outline-none"-->
+<!--                                                type="text" value="registry.internal.ai/v2/models/yolov8_base:latest" />-->
+<!--                                            <button-->
+<!--                                                class="bg-indigo-600 px-6 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-500 transition-colors">-->
+<!--                                                <svg aria-hidden="true" class="iconify iconify&#45;&#45;material-symbols"-->
+<!--                                                    data-icon="material-symbols:cloud-download-outline" height="1em"-->
+<!--                                                    role="img" viewbox="0 0 24 24" width="1em"-->
+<!--                                                    xmlns="http://www.w3.org/2000/svg">-->
+<!--                                                    <path-->
+<!--                                                        d="M6.5 20q-2.275 0-3.887-1.575T1 14.575q0-1.95 1.175-3.475T5.25 9.15q.425-1.8 2.125-3.425T11 4.1q.825 0 1.413.588T13 6.1v6.05l1.6-1.55L16 12l-4 4l-4-4l1.4-1.4l1.6 1.55V6.1q-1.9.35-2.95 1.838T7 11h-.5q-1.45 0-2.475 1.025T3 14.5t1.025 2.475T6.5 18h12q1.05 0 1.775-.725T21 15.5t-.725-1.775T18.5 13H17v-2q0-1.2-.55-2.238T15 7V4.675q1.85.875 2.925 2.588T19 11q1.725.2 2.863 1.488T23 15.5q0 1.875-1.312 3.188T18.5 20zm5.5-8.95"-->
+<!--                                                        fill="currentColor"></path>-->
+<!--                                                </svg> 校验镜像-->
+<!--                                            </button>-->
+<!--                                        </div>-->
+<!--                                    </div>-->
+
                                     <div class="p-6 rounded-xl bg-slate-900/80 border border-slate-800">
                                         <div class="flex justify-between items-center mb-6">
                                             <h5 class="text-sm font-bold flex items-center gap-2 text-sky-400">
@@ -1021,54 +1049,49 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex justify-end gap-4 pt-4 border-t border-slate-800">
-                                        <button
-                                            class="px-8 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition-all text-sm">取消注册</button>
-                                        <button
-                                            class="px-8 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 rounded-lg font-bold shadow-lg shadow-sky-900/40 hover:scale-105 transition-all">提交并生成UUID</button>
-                                    </div>
+<!--                                    <div class="flex justify-end gap-4 pt-4 border-t border-slate-800">-->
+<!--                                        <button-->
+<!--                                            class="px-8 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition-all text-sm">取消注册</button>-->
+<!--                                        <button-->
+<!--                                            class="px-8 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 rounded-lg font-bold shadow-lg shadow-sky-900/40 hover:scale-105 transition-all">提交并生成UUID</button>-->
+<!--                                    </div>-->
                                 </div>
                             </div>
                         </div>
                     </section>
                     <!-- 在线代码修改 (Editor) -->
                     <section class="page-section h-full flex flex-col gap-4 hidden" id="page-editor">
-                        <div
-                            class="flex justify-between items-center glass-panel p-4 rounded-xl border border-sky-500/20">
+                        <div class="flex justify-between items-center glass-panel p-4 rounded-xl border border-sky-500/20">
                             <div class="flex items-center gap-4">
-                                <div
-                                    class="flex items-center gap-2 px-3 py-1 bg-slate-800 rounded-md border border-slate-700">
+                                <div class="flex items-center gap-2 px-3 py-1 bg-slate-800 rounded-md border border-slate-700">
                                     <svg aria-hidden="true" class="iconify text-sky-400 iconify--material-symbols"
-                                        data-icon="material-symbols:terminal" height="1em" role="img"
-                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        data-icon="material-symbols:terminal" height="1em" role="img" viewbox="0 0 24 24"
+                                        width="1em" xmlns="http://www.w3.org/2000/svg">
                                         <path
                                             d="M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v12q0 .825-.587 1.413T20 20zm0-2h16V8H4zm3.5-1l-1.4-1.4L8.675 13l-2.6-2.6L7.5 9l4 4zm4.5 0v-2h6v2z"
                                             fill="currentColor"></path>
                                     </svg>
-                                    <span class="text-sm font-mono tracking-tight">inference.py</span>
+                                    <span class="text-sm font-mono tracking-tight" id="editor-filename">inference.py</span>
                                 </div>
                                 <div class="text-[11px] text-slate-500 italic">
-                                    正在编辑: <span class="text-sky-300">ResNet50-ObjectDetection</span> | 所在容器: <span
-                                        class="text-sky-300">test-runtime-v2</span>
+                                    正在编辑: <span id="editor-algo-name" class="text-sky-300">未选择算法</span>
                                 </div>
                             </div>
                             <div class="flex gap-2">
-                                <button
-                                    class="flex items-center gap-1 px-4 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs transition-colors">
+                                <button id="rollback-version" class="flex items-center gap-1 px-4 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs transition-colors">
                                     <svg aria-hidden="true" class="iconify iconify--material-symbols"
-                                        data-icon="material-symbols:history-rounded" height="1em" role="img"
-                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        data-icon="material-symbols:history-rounded" height="1em" role="img" viewbox="0 0 24 24"
+                                        width="1em" xmlns="http://www.w3.org/2000/svg">
                                         <path
                                             d="M12 21q-3.15 0-5.575-1.912T3.275 14.2q-.1-.375.15-.687t.675-.363q.4-.05.725.15t.45.6q.6 2.25 2.475 3.675T12 19q2.925 0 4.963-2.037T19 12t-2.037-4.962T12 5q-1.725 0-3.225.8T6.25 8H8q.425 0 .713.288T9 9t-.288.713T8 10H4q-.425 0-.712-.288T3 9V5q0-.425.288-.712T4 4t.713.288T5 5v1.35q1.275-1.6 3.113-2.475T12 3q1.875 0 3.513.713t2.85 1.924t1.925 2.85T21 12t-.712 3.513t-1.925 2.85t-2.85 1.925T12 21m1-9.4l2.5 2.5q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-2.8-2.8q-.15-.15-.225-.337T11 11.975V8q0-.425.288-.712T12 7t.713.288T13 8z"
                                             fill="currentColor"></path>
                                     </svg> 回滚版本
                                 </button>
-                                <button
-                                    class="flex items-center gap-1 px-4 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-xs text-white transition-colors font-bold neon-border"
-                                    onclick="saveCode()">
+                                <button id="save-hot-update"
+                                    class="flex items-center gap-1 px-4 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-xs text-white transition-colors font-bold neon-border">
                                     <svg aria-hidden="true" class="iconify iconify--material-symbols"
-                                        data-icon="material-symbols:save-outline" height="1em" role="img"
-                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                                        data-icon="material-symbols:save-outline" height="1em" role="img" viewbox="0 0 24 24"
+                                        width="1em" xmlns="http://www.w3.org/2000/svg">
                                         <path
                                             d="M21 7v12q0 .825-.587 1.413T19 21H5q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h12zm-2 .85L16.15 5H5v14h14zm-4.875 9.275Q15 16.25 15 15t-.875-2.125T12 12t-2.125.875T9 15t.875 2.125T12 18t2.125-.875M6 10h9V6H6zM5 7.85V19V5z"
                                             fill="currentColor"></path>
@@ -1076,47 +1099,14 @@
                                 </button>
                             </div>
                         </div>
-                        <!-- 模拟 IDE -->
-                        <div
-                            class="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col border border-slate-800">
-                            <div class="flex-1 font-mono text-sm code-editor p-4 overflow-auto leading-relaxed">
-                                <div class="code-line"><span class="text-rose-400">import</span> <span
-                                        class="text-emerald-400">os</span></div>
-                                <div class="code-line"><span class="text-rose-400">import</span> <span
-                                        class="text-emerald-400">torch</span></div>
-                                <div class="code-line"><span class="text-rose-400">from</span> <span
-                                        class="text-emerald-400">model_factory</span> <span
-                                        class="text-rose-400">import</span>
-                                    load_resnet</div>
-                                <div class="code-line"></div>
-                                <div class="code-line"><span class="text-slate-500"># 核心推理入口 (推理代码可在线热更新)</span></div>
-                                <div class="code-line"><span class="text-rose-400">def</span> <span
-                                        class="text-sky-400">predict</span>(image_tensor):</div>
-                                <div class="code-line pl-6">device = <span class="text-amber-400">"cuda"</span> <span
-                                        class="text-rose-400">if</span> torch.cuda.is_available() <span
-                                        class="text-rose-400">else</span> <span class="text-amber-400">"cpu"</span>
-                                </div>
-                                <div class="code-line pl-6">model = load_resnet(<span
-                                        class="text-amber-400">"./weights/best.pth"</span>)</div>
-                                <div class="code-line pl-6">model.to(device)</div>
-                                <div class="code-line pl-6">model.eval()</div>
-                                <div class="code-line"></div>
-                                <div class="code-line pl-6"><span class="text-rose-400">with</span> torch.no_grad():
-                                </div>
-                                <div
-                                    class="code-line pl-12 flex items-center cursor-text bg-sky-500/10 border-l-2 border-sky-500">
-                                    output = model(image_tensor)<span
-                                        class="w-1.5 h-5 bg-sky-400 ml-1 animate-pulse"></span>
-                                </div>
-                                <div class="code-line pl-12"><span class="text-rose-400">return</span>
-                                    output.softmax(dim=<span class="text-purple-400">1</span>)</div>
-                            </div>
-                            <div
-                                class="h-8 bg-slate-900 border-t border-slate-800 flex items-center justify-between px-4 text-[10px] text-slate-500">
+                        <!-- 可编辑代码区域 -->
+                        <div class="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col border border-slate-800">
+                            <textarea id="code-editor" class="flex-1 bg-slate-900 text-sm font-mono p-4 resize-none focus:outline-none"
+                                style="min-height: 500px;"></textarea>
+                            <div class="h-8 bg-slate-900 border-t border-slate-800 flex items-center justify-between px-4 text-[10px] text-slate-500">
                                 <div class="flex gap-4">
-                                    <span>Ln 13, Col 26</span>
                                     <span>UTF-8</span>
-                                    <span>Python 3.9</span>
+                                    <span>可编辑</span>
                                 </div>
                                 <div class="flex gap-2 text-emerald-500">
                                     <svg aria-hidden="true" class="iconify iconify--material-symbols"
@@ -1125,11 +1115,109 @@
                                         <path
                                             d="m10.6 16.6l7.05-7.05l-1.4-1.4l-5.65 5.65l-2.85-2.85l-1.4 1.4zM12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8"
                                             fill="currentColor"></path>
-                                    </svg> 语法检测正常
+                                    </svg> 实时编辑
                                 </div>
                             </div>
                         </div>
                     </section>
+<!--                    <section class="page-section h-full flex flex-col gap-4 hidden" id="page-editor">-->
+<!--                        <div-->
+<!--                            class="flex justify-between items-center glass-panel p-4 rounded-xl border border-sky-500/20">-->
+<!--                            <div class="flex items-center gap-4">-->
+<!--                                <div-->
+<!--                                    class="flex items-center gap-2 px-3 py-1 bg-slate-800 rounded-md border border-slate-700">-->
+<!--                                    <svg aria-hidden="true" class="iconify text-sky-400 iconify&#45;&#45;material-symbols"-->
+<!--                                        data-icon="material-symbols:terminal" height="1em" role="img"-->
+<!--                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">-->
+<!--                                        <path-->
+<!--                                            d="M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v12q0 .825-.587 1.413T20 20zm0-2h16V8H4zm3.5-1l-1.4-1.4L8.675 13l-2.6-2.6L7.5 9l4 4zm4.5 0v-2h6v2z"-->
+<!--                                            fill="currentColor"></path>-->
+<!--                                    </svg>-->
+<!--                                    <span class="text-sm font-mono tracking-tight">inference.py</span>-->
+<!--                                </div>-->
+<!--                                <div class="text-[11px] text-slate-500 italic">-->
+<!--                                    正在编辑: <span class="text-sky-300">ResNet50-ObjectDetection</span> | 所在容器: <span-->
+<!--                                        class="text-sky-300">test-runtime-v2</span>-->
+<!--                                </div>-->
+<!--                            </div>-->
+<!--                            <div class="flex gap-2">-->
+<!--                                <button-->
+<!--                                    class="flex items-center gap-1 px-4 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs transition-colors">-->
+<!--                                    <svg aria-hidden="true" class="iconify iconify&#45;&#45;material-symbols"-->
+<!--                                        data-icon="material-symbols:history-rounded" height="1em" role="img"-->
+<!--                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">-->
+<!--                                        <path-->
+<!--                                            d="M12 21q-3.15 0-5.575-1.912T3.275 14.2q-.1-.375.15-.687t.675-.363q.4-.05.725.15t.45.6q.6 2.25 2.475 3.675T12 19q2.925 0 4.963-2.037T19 12t-2.037-4.962T12 5q-1.725 0-3.225.8T6.25 8H8q.425 0 .713.288T9 9t-.288.713T8 10H4q-.425 0-.712-.288T3 9V5q0-.425.288-.712T4 4t.713.288T5 5v1.35q1.275-1.6 3.113-2.475T12 3q1.875 0 3.513.713t2.85 1.924t1.925 2.85T21 12t-.712 3.513t-1.925 2.85t-2.85 1.925T12 21m1-9.4l2.5 2.5q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-2.8-2.8q-.15-.15-.225-.337T11 11.975V8q0-.425.288-.712T12 7t.713.288T13 8z"-->
+<!--                                            fill="currentColor"></path>-->
+<!--                                    </svg> 回滚版本-->
+<!--                                </button>-->
+<!--                                <button-->
+<!--                                    class="flex items-center gap-1 px-4 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-xs text-white transition-colors font-bold neon-border"-->
+<!--                                    onclick="saveCode()">-->
+<!--                                    <svg aria-hidden="true" class="iconify iconify&#45;&#45;material-symbols"-->
+<!--                                        data-icon="material-symbols:save-outline" height="1em" role="img"-->
+<!--                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">-->
+<!--                                        <path-->
+<!--                                            d="M21 7v12q0 .825-.587 1.413T19 21H5q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h12zm-2 .85L16.15 5H5v14h14zm-4.875 9.275Q15 16.25 15 15t-.875-2.125T12 12t-2.125.875T9 15t.875 2.125T12 18t2.125-.875M6 10h9V6H6zM5 7.85V19V5z"-->
+<!--                                            fill="currentColor"></path>-->
+<!--                                    </svg> 保存并热更新镜像-->
+<!--                                </button>-->
+<!--                            </div>-->
+<!--                        </div>-->
+<!--                        &lt;!&ndash; 模拟 IDE &ndash;&gt;-->
+<!--                        <div-->
+<!--                            class="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col border border-slate-800">-->
+<!--                            <div class="flex-1 font-mono text-sm code-editor p-4 overflow-auto leading-relaxed">-->
+<!--                                <div class="code-line"><span class="text-rose-400">import</span> <span-->
+<!--                                        class="text-emerald-400">os</span></div>-->
+<!--                                <div class="code-line"><span class="text-rose-400">import</span> <span-->
+<!--                                        class="text-emerald-400">torch</span></div>-->
+<!--                                <div class="code-line"><span class="text-rose-400">from</span> <span-->
+<!--                                        class="text-emerald-400">model_factory</span> <span-->
+<!--                                        class="text-rose-400">import</span>-->
+<!--                                    load_resnet</div>-->
+<!--                                <div class="code-line"></div>-->
+<!--                                <div class="code-line"><span class="text-slate-500"># 核心推理入口 (推理代码可在线热更新)</span></div>-->
+<!--                                <div class="code-line"><span class="text-rose-400">def</span> <span-->
+<!--                                        class="text-sky-400">predict</span>(image_tensor):</div>-->
+<!--                                <div class="code-line pl-6">device = <span class="text-amber-400">"cuda"</span> <span-->
+<!--                                        class="text-rose-400">if</span> torch.cuda.is_available() <span-->
+<!--                                        class="text-rose-400">else</span> <span class="text-amber-400">"cpu"</span>-->
+<!--                                </div>-->
+<!--                                <div class="code-line pl-6">model = load_resnet(<span-->
+<!--                                        class="text-amber-400">"./weights/best.pth"</span>)</div>-->
+<!--                                <div class="code-line pl-6">model.to(device)</div>-->
+<!--                                <div class="code-line pl-6">model.eval()</div>-->
+<!--                                <div class="code-line"></div>-->
+<!--                                <div class="code-line pl-6"><span class="text-rose-400">with</span> torch.no_grad():-->
+<!--                                </div>-->
+<!--                                <div-->
+<!--                                    class="code-line pl-12 flex items-center cursor-text bg-sky-500/10 border-l-2 border-sky-500">-->
+<!--                                    output = model(image_tensor)<span-->
+<!--                                        class="w-1.5 h-5 bg-sky-400 ml-1 animate-pulse"></span>-->
+<!--                                </div>-->
+<!--                                <div class="code-line pl-12"><span class="text-rose-400">return</span>-->
+<!--                                    output.softmax(dim=<span class="text-purple-400">1</span>)</div>-->
+<!--                            </div>-->
+<!--                            <div-->
+<!--                                class="h-8 bg-slate-900 border-t border-slate-800 flex items-center justify-between px-4 text-[10px] text-slate-500">-->
+<!--                                <div class="flex gap-4">-->
+<!--                                    <span>Ln 13, Col 26</span>-->
+<!--                                    <span>UTF-8</span>-->
+<!--                                    <span>Python 3.9</span>-->
+<!--                                </div>-->
+<!--                                <div class="flex gap-2 text-emerald-500">-->
+<!--                                    <svg aria-hidden="true" class="iconify iconify&#45;&#45;material-symbols"-->
+<!--                                        data-icon="material-symbols:check-circle-outline" height="1em" role="img"-->
+<!--                                        viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">-->
+<!--                                        <path-->
+<!--                                            d="m10.6 16.6l7.05-7.05l-1.4-1.4l-5.65 5.65l-2.85-2.85l-1.4 1.4zM12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8"-->
+<!--                                            fill="currentColor"></path>-->
+<!--                                    </svg> 语法检测正常-->
+<!--                                </div>-->
+<!--                            </div>-->
+<!--                        </div>-->
+<!--                    </section>-->
                     <!-- 算法回收站 (Recycle) -->
                     <section class="page-section hidden" id="page-recycle">
                         <div class="glass-panel rounded-2xl p-8 mb-6 bg-slate-900/20">

@@ -1,13 +1,16 @@
 # app/api/endpoints.py
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request,UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.models.schemas import AlgorithmRegister, AlgorithmResponse
-from app.models.database import get_db, AlgorithmModel
+from app.models.database import get_db, AlgorithmModel,AlgorithmVersionModel
 from sse_starlette.sse import EventSourceResponse
 import json
 import asyncio
 import uuid
+import os
+import shutil
+from pathlib import Path
 
 # 注意：下方为假想逻辑，等待数据链路部分具体实现后再完善
 from app.services.training_service import training_service
@@ -158,6 +161,143 @@ async def search_algorithms(
     # 按创建时间倒序
     results = query.order_by(AlgorithmModel.created_at.desc()).all()
     return results
+
+# 上传目录
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+# 接受镜像文件并对其进行校验
+@router.post("/algorithm/upload-file/{algorithm_id}", tags=["算法管理"])
+async def upload_algorithm_version(
+    algorithm_id: int,
+    file: UploadFile = File(...),
+    rule: str = Form("json_schema"),  # 校验规则，可扩展
+    version_number: str = Form(None),   # 前端可选传入版本号
+    db: Session = Depends(get_db)
+):
+    """
+    为指定算法上传文件并进行校验
+    - algorithm_id: 算法ID
+    - file: 上传的文件（.py, .json 等）
+    - rule: 校验规则，例如 'json_schema', 'python_syntax' 等
+    """
+    # 1检查算法是否存在
+    algorithm = db.query(AlgorithmModel).filter(AlgorithmModel.id == algorithm_id).first()
+    if not algorithm:
+        raise HTTPException(status_code=404, detail="算法不存在")
+
+    # 读取文件内容
+    contents = await file.read()
+    file_extension = Path(file.filename).suffix.lower()
+
+    # 根据规则校验
+    validation_result = validate_file(contents, file_extension, rule)
+    if not validation_result["valid"]:
+        raise HTTPException(status_code=400, detail=validation_result["error"])
+
+    # 生成版本号（如果前端未提供）
+    if not version_number:
+        # 获取该算法已有的最大版本号（简单递增数字）
+        existing_versions = db.query(AlgorithmVersionModel).filter(
+            AlgorithmVersionModel.algorithm_id == algorithm_id
+        ).order_by(AlgorithmVersionModel.id.desc()).first()
+        if existing_versions:
+            # 尝试从版本号中提取数字，例如 v1.0.0 -> 1.0.0，然后自增小版本
+            last_num = existing_versions.version_number
+            # 简单处理：假设版本号格式为 vX.Y.Z，自动升级 Z
+            import re
+            match = re.match(r"v(\d+)\.(\d+)\.(\d+)", last_num)
+            if match:
+                major, minor, patch = map(int, match.groups())
+                new_version = f"v{major}.{minor}.{patch + 1}"
+            else:
+                new_version = "v1.0.1"
+        else:
+            new_version = "v1.0.0"
+        version_number = new_version
+
+    # 保存文件到服务器
+    safe_filename = f"{algorithm_id}_{version_number}_{file.filename}"
+    file_path = UPLOAD_DIR / safe_filename
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+        # 创建版本记录
+    version_record = AlgorithmVersionModel(
+        algorithm_id=algorithm_id,
+        version_number=version_number,
+        file_path=str(file_path),
+        rule_used=rule,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    db.add(version_record)
+    algorithm.file_path = str(file_path)
+    algorithm.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(version_record)
+    db.refresh(algorithm)
+    return {
+        "message": "版本上传成功",
+        "version": version_record.version_number,
+        "file_path": version_record.file_path,
+        "algorithm_id": algorithm_id
+    }
+
+def validate_file(contents: bytes, extension: str, rule: str) -> dict:
+    """根据规则校验文件内容"""
+    # if rule == "json_schema":
+    #     # 示例：校验是否为合法JSON且包含必要字段
+    #     try:
+    #         import json
+    #         data = json.loads(contents.decode('utf-8'))
+    #         required_fields = ["model_name", "version", "input_shape"]
+    #         missing = [f for f in required_fields if f not in data]
+    #         if missing:
+    #             return {"valid": False, "error": f"JSON缺少必要字段: {missing}"}
+    #         return {"valid": True, "error": None}
+    #     except Exception as e:
+    #         return {"valid": False, "error": f"JSON解析失败: {str(e)}"}
+    # elif rule == "python_syntax":
+    #     # 校验Python语法
+    #     try:
+    #         compile(contents, '<string>', 'exec')
+    #         return {"valid": True, "error": None}
+    #     except SyntaxError as e:
+    #         return {"valid": False, "error": f"Python语法错误: {str(e)}"}
+    # else:
+    #     # 默认只校验非空
+    #     if len(contents) == 0:
+    #         return {"valid": False, "error": "文件为空"}
+    return {"valid": True, "error": None}
+
+
+@router.get("/algorithm/{algorithm_id}/file-content", tags=["算法管理"])
+async def get_algorithm_file_content(algorithm_id: int, db: Session = Depends(get_db)):
+    """获取算法当前关联的镜像文件内容"""
+    algorithm = db.query(AlgorithmModel).filter(AlgorithmModel.id == algorithm_id).first()
+    if not algorithm:
+        raise HTTPException(status_code=404, detail="算法不存在")
+    if not algorithm.file_path:
+        raise HTTPException(status_code=404, detail="该算法尚未上传任何镜像文件")
+
+    file_path = Path(algorithm.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="文件已丢失")
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取文件失败: {str(e)}")
+
+    return {
+        "filename": file_path.name,
+        "content": content,
+        "algorithm_name": algorithm.name,
+        "algorithm_version": algorithm.version
+    }
+
 #==================================
 #           p2部分接口
 #==================================
