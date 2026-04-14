@@ -66,8 +66,8 @@
                 <div class="space-y-3">
                     <div class="p-2 border border-slate-800 rounded bg-black/20">
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-400">预处理推理负载</span>
-                            <span class="text-blue-400">42%</span>
+                            <span class="text-slate-400">当前STEP</span>
+                            <span class="text-blue-400">等待启动</span>
                         </div>
                         <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
                             <div class="bg-blue-500 h-full" style="width: 42%"></div>
@@ -75,8 +75,8 @@
                     </div>
                     <div class="p-2 border border-slate-800 rounded bg-black/20">
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-400">检测头吞吐率</span>
-                            <span class="text-emerald-400">850 FPS</span>
+                            <span class="text-slate-400">内存占用</span>
+                            <span class="text-emerald-400">等待启动</span>
                         </div>
                         <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
                             <div class="bg-emerald-500 h-full" style="width: 85%"></div>
@@ -84,8 +84,8 @@
                     </div>
                     <div class="p-2 border border-slate-800 rounded bg-black/20">
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-400">显存池占用 (VRAM)</span>
-                            <span class="text-amber-400">12.8 GB</span>
+                            <span class="text-slate-400">显存占用</span>
+                            <span class="text-amber-400">等待启动</span>
                         </div>
                         <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
                             <div class="bg-amber-500 h-full" style="width: 64%"></div>
@@ -110,41 +110,8 @@
             <div class="absolute inset-0 opacity-20 pointer-events-none"
                 style="background-image: radial-gradient(circle, #334155 1px, transparent 1px); background-size: 40px 40px;">
             </div>
-            <!-- SVG 连线层 -->
-            <svg class="absolute inset-0 w-full h-full pointer-events-none z-10">
-                <defs>
-                    <marker id="arrowhead" markerheight="7" markerwidth="10" orient="auto" refx="0" refy="3.5">
-                        <polygon fill="#3b82f6" points="0 0, 10 3.5, 0 7"></polygon>
-                    </marker>
-                    <lineargradient id="flowGradient" x1="0%" x2="100%" y1="0%" y2="0%">
-                        <stop offset="0%" stop-color="#3b82f6" stop-opacity="0"></stop>
-                        <stop offset="50%" stop-color="#3b82f6" stop-opacity="1"></stop>
-                        <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"></stop>
-                    </lineargradient>
-                </defs>
-                <!-- 从模块到 Agent 的反馈线 (Feedback Loops) -->
-                <!-- 预处理 -> Agent -->
-                <path class="data-flow opacity-40" d="M 280 250 Q 400 300 500 400" fill="none" stroke="#3b82f6"
-                    stroke-width="1.5"></path>
-                <!-- 检测 -> Agent -->
-                <path class="data-flow opacity-40" d="M 800 250 Q 700 300 600 400" fill="none" stroke="#3b82f6"
-                    stroke-width="1.5"></path>
-                <!-- 跟踪 -> Agent -->
-                <path class="data-flow opacity-40" d="M 280 550 Q 400 500 500 400" fill="none" stroke="#3b82f6"
-                    stroke-width="1.5"></path>
-                <!-- 装备响应 -> Agent -->
-                <path class="data-flow opacity-40" d="M 800 550 Q 700 500 600 400" fill="none" stroke="#3b82f6"
-                    stroke-width="1.5"></path>
-                <!-- 从 Agent 到 模块的指令线 (Action Lines) -->
-                <line class="opacity-60" stroke="#10b981" stroke-dasharray="5 5" stroke-width="2" x1="550" x2="280"
-                    y1="360" y2="220"></line>
-                <line class="opacity-60" stroke="#10b981" stroke-dasharray="5 5" stroke-width="2" x1="550" x2="800"
-                    y1="360" y2="220"></line>
-                <line class="opacity-60" stroke="#10b981" stroke-dasharray="5 5" stroke-width="2" x1="550" x2="280"
-                    y1="440" y2="580"></line>
-                <line class="opacity-60" stroke="#10b981" stroke-dasharray="5 5" stroke-width="2" x1="550" x2="800"
-                    y1="440" y2="580"></line>
-            </svg>
+            
+
             <!-- 核心：强化学习 Agent -->
             <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
                 <div
