@@ -13,8 +13,9 @@ from db import (
     fetch_all,
     fetch_one,
     json_dumps,
-    now_iso,
+    now_db,
     parse_deployment,
+    to_db_datetime,
 )
 from models import (
     CreateAlgorithmRequest,
@@ -225,6 +226,7 @@ def deployment_summary(item: dict[str, Any]) -> dict[str, Any]:
         "replicas": item["replicas"],
         "readyReplicas": item["readyReplicas"],
         "port": item["port"],
+        "isDeleted": item["isDeleted"],
         "updatedAt": item["updatedAt"],
     }
 
@@ -319,17 +321,26 @@ def require_build_record(uuid: str) -> dict[str, Any]:
     return require_record("build_records", uuid, "build record not found")
 
 
-def touch_algorithm(uuid: str, updated_at: str | None = None) -> None:
+def require_deployment(uuid: str, message: str = "deployment not found") -> dict[str, Any]:
+    item = fetch_one(
+        "SELECT * FROM deployments WHERE uuid = ? AND isDeleted = 0",
+        (uuid,),
+    )
+    ensure(item is not None, 404, message)
+    return item  # type: ignore[return-value]
+
+
+def touch_algorithm(uuid: str, updated_at: Any | None = None) -> None:
     execute(
         "UPDATE algorithms SET updatedAt = ? WHERE uuid = ?",
-        (updated_at or now_iso(), uuid),
+        (updated_at or now_db(), uuid),
     )
 
 
-def touch_version(uuid: str, updated_at: str | None = None) -> None:
+def touch_version(uuid: str, updated_at: Any | None = None) -> None:
     execute(
         "UPDATE versions SET updatedAt = ? WHERE uuid = ?",
-        (updated_at or now_iso(), uuid),
+        (updated_at or now_db(), uuid),
     )
 
 
@@ -338,7 +349,7 @@ def has_active_deployment(where_clause: str, params: tuple[Any, ...]) -> bool:
         f"""
         SELECT uuid
         FROM deployments
-        WHERE {where_clause} AND status IN ({ACTIVE_DEPLOYMENT_SQL})
+        WHERE isDeleted = 0 AND {where_clause} AND status IN ({ACTIVE_DEPLOYMENT_SQL})
         LIMIT 1
         """,
         params,
@@ -378,7 +389,7 @@ def create_algorithm(body: CreateAlgorithmRequest):
         return fail(400, "algorithmCode already exists")
 
     algorithm_uuid = gen_uuid("alg")
-    created_at = now_iso()
+    created_at = now_db()
     execute(
         """
         INSERT INTO algorithms (
@@ -461,7 +472,7 @@ def update_algorithm(uuid: str, body: UpdateAlgorithmRequest):
         fields.append(f"{key} = ?")
         params.append(value)
     fields.append("updatedAt = ?")
-    params.append(now_iso())
+    params.append(now_db())
     params.append(uuid)
 
     execute(
@@ -480,7 +491,7 @@ def delete_algorithm(uuid: str):
         SELECT d.uuid
         FROM deployments d
         JOIN versions v ON v.uuid = d.versionUuid
-        WHERE v.algorithmUuid = ? AND d.status IN ({})
+        WHERE v.algorithmUuid = ? AND d.isDeleted = 0 AND d.status IN ({})
         LIMIT 1
         """.format(ACTIVE_DEPLOYMENT_SQL),
         (uuid,),
@@ -502,7 +513,7 @@ def create_version(uuid: str, body: CreateVersionRequest):
     ensure(existing is None, 400, "version already exists under current algorithm")
 
     version_uuid = gen_uuid("ver")
-    created_at = now_iso()
+    created_at = now_db()
     execute(
         """
         INSERT INTO versions (
@@ -604,7 +615,7 @@ def update_version(uuid: str, body: UpdateVersionRequest):
         fields.append(f"{key} = ?")
         params.append(value)
     fields.append("updatedAt = ?")
-    updated_at = now_iso()
+    updated_at = now_db()
     params.append(updated_at)
     params.append(uuid)
 
@@ -638,7 +649,7 @@ def create_deployment(body: CreateDeploymentRequest):
     deployment_name = generate_deployment_name(
         algorithm["algorithmCode"], version["version"], namespace
     )
-    created_at = now_iso()
+    created_at = now_db()
     replicas = max(body.replicas, 1)
     resources = {}
     if body.resources:
@@ -662,6 +673,7 @@ def create_deployment(body: CreateDeploymentRequest):
         "errorMessage": "",
         "env": body.env,
         "resources": resources,
+        "isDeleted": 0,
         "deployedAt": created_at,
         "updatedAt": created_at,
     }
@@ -670,8 +682,8 @@ def create_deployment(body: CreateDeploymentRequest):
         INSERT INTO deployments (
             uuid, versionUuid, namespace, deploymentName, serviceName,
             status, port, replicas, readyReplicas, accessEndpoint,
-            errorMessage, env, resources, image, deployedAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            errorMessage, env, resources, image, isDeleted, deployedAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             item["uuid"],
@@ -688,6 +700,7 @@ def create_deployment(body: CreateDeploymentRequest):
             json_dumps(item["env"]),
             json_dumps(item["resources"]),
             item["image"],
+            item["isDeleted"],
             item["deployedAt"],
             item["updatedAt"],
         ),
@@ -704,7 +717,9 @@ def list_deployments(
     pageNum: int = Query(default=1),
     pageSize: int = Query(default=10),
 ):
-    rows = fetch_all("SELECT * FROM deployments ORDER BY updatedAt DESC")
+    rows = fetch_all(
+        "SELECT * FROM deployments WHERE isDeleted = 0 ORDER BY updatedAt DESC"
+    )
     items: list[dict[str, Any]] = []
     for row in rows:
         item = parse_deployment(row)
@@ -721,12 +736,12 @@ def list_deployments(
 
 @app.get("/api/v1/deployments/{uuid}")
 def get_deployment(uuid: str):
-    return ok(deployment_detail(parse_deployment(require_record("deployments", uuid, "deployment not found"))))
+    return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
 
 
 @app.put("/api/v1/deployments/{uuid}")
 def update_deployment(uuid: str, body: UpdateDeploymentRequest):
-    row = parse_deployment(require_record("deployments", uuid, "deployment not found"))
+    row = parse_deployment(require_deployment(uuid))
     payload = body.model_dump(exclude_none=True)
     if not payload:
         return ok(deployment_detail(row))
@@ -761,43 +776,43 @@ def update_deployment(uuid: str, body: UpdateDeploymentRequest):
             json_dumps(next_env),
             json_dumps(next_resources),
             "UPDATING",
-            now_iso(),
+            now_db(),
             uuid,
         ),
     )
-    return ok(deployment_detail(parse_deployment(require_record("deployments", uuid, "deployment not found"))))
+    return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
 
 
 @app.delete("/api/v1/deployments/{uuid}")
 def delete_deployment(uuid: str):
-    require_record("deployments", uuid, "deployment not found")
-    updated_at = now_iso()
+    require_deployment(uuid)
+    updated_at = now_db()
     execute(
         """
         UPDATE deployments
-        SET status = ?, readyReplicas = ?, updatedAt = ?
+        SET status = ?, readyReplicas = ?, isDeleted = ?, updatedAt = ?
         WHERE uuid = ?
         """,
-        ("DELETING", 0, updated_at, uuid),
+        ("DELETED", 0, 1, updated_at, uuid),
     )
-    return ok({"uuid": uuid, "status": "DELETING"})
+    return ok({"uuid": uuid, "status": "DELETED", "isDeleted": 1})
 
 
 @app.post("/api/v1/deployments/{uuid}/restart")
 def restart_deployment(uuid: str):
-    row = require_record("deployments", uuid, "deployment not found")
-    ensure(row["status"] != "DELETING", 400, "deployment is deleting")
+    row = require_deployment(uuid)
+    ensure(row["status"] != "DELETED", 400, "deployment is deleted")
 
     execute(
         "UPDATE deployments SET status = ?, updatedAt = ? WHERE uuid = ?",
-        ("UPDATING", now_iso(), uuid),
+        ("UPDATING", now_db(), uuid),
     )
     return ok({"uuid": uuid, "status": "UPDATING"})
 
 
 @app.post("/api/v1/deployments/{uuid}/scale")
 def scale_deployment(uuid: str, body: ScaleRequest):
-    row = require_record("deployments", uuid, "deployment not found")
+    row = require_deployment(uuid)
     ensure(body.replicas > 0, 400, "replicas must be greater than 0")
 
     execute(
@@ -806,7 +821,7 @@ def scale_deployment(uuid: str, body: ScaleRequest):
         SET status = ?, replicas = ?, readyReplicas = ?, updatedAt = ?
         WHERE uuid = ?
         """,
-        ("SCALING", body.replicas, body.replicas, now_iso(), uuid),
+        ("SCALING", body.replicas, body.replicas, now_db(), uuid),
     )
     return ok(
         {
@@ -829,8 +844,8 @@ def create_build_record(uuid: str, body: CreateBuildRecordRequest):
         output_version = require_version(body.outputVersionUuid, "output version not found")
         ensure(output_version["algorithmUuid"] == uuid, 400, "output version does not belong to current algorithm")
 
-    started_at = now_iso()
-    finished_at = started_at if body.buildStatus in {"SUCCESS", "FAILED"} else ""
+    started_at = now_db()
+    finished_at = started_at if body.buildStatus in {"SUCCESS", "FAILED"} else None
     record_uuid = gen_uuid("bld")
     execute(
         """
@@ -899,7 +914,9 @@ def update_build_record(uuid: str, body: UpdateBuildRecordRequest):
     if not payload:
         return ok(build_record_detail(item))
     if payload.get("buildStatus") in {"SUCCESS", "FAILED"} and "finishedAt" not in payload:
-        payload["finishedAt"] = now_iso()
+        payload["finishedAt"] = now_db()
+    elif "finishedAt" in payload:
+        payload["finishedAt"] = to_db_datetime(payload["finishedAt"])
 
     fields = []
     params: list[Any] = []

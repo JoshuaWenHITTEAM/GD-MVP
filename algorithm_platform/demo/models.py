@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -126,4 +127,4 @@ class UpdateBuildRecordRequest(BaseModel):
     buildLogPath: str | None = None
     errorMessage: str | None = None
     resultSummary: str | None = None
-    finishedAt: str | None = None
+    finishedAt: datetime | None = None

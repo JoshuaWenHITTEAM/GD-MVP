@@ -11,7 +11,7 @@ import pymysql
 TZ = timezone(timedelta(hours=8))
 BASE_DIR = Path(__file__).resolve().parent
 RUNTIME_ROOT = BASE_DIR / "runtime"
-SCHEMA_VERSION = "2026-04-09-mysql"
+SCHEMA_VERSION = "2026-04-15-mysql-datetime"
 
 DB_HOST = os.getenv("DEMO_DB_HOST", "127.0.0.1")
 DB_PORT = int(os.getenv("DEMO_DB_PORT", "3306"))
@@ -39,8 +39,8 @@ SCHEMA_SQL = [
         languageType VARCHAR(32) NOT NULL,
         description TEXT NOT NULL,
         status VARCHAR(32) NOT NULL,
-        createdAt VARCHAR(64) NOT NULL,
-        updatedAt VARCHAR(64) NOT NULL
+        createdAt DATETIME(6) NOT NULL,
+        updatedAt DATETIME(6) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
@@ -63,8 +63,8 @@ SCHEMA_SQL = [
         fullImageUri VARCHAR(512) NOT NULL,
         imageSize BIGINT NULL,
         publishStatus VARCHAR(32) NOT NULL,
-        createdAt VARCHAR(64) NOT NULL,
-        updatedAt VARCHAR(64) NOT NULL,
+        createdAt DATETIME(6) NOT NULL,
+        updatedAt DATETIME(6) NOT NULL,
         UNIQUE KEY uniq_algorithm_version (algorithmUuid, version),
         CONSTRAINT fk_versions_algorithm
             FOREIGN KEY (algorithmUuid) REFERENCES algorithms(uuid)
@@ -87,9 +87,11 @@ SCHEMA_SQL = [
         env TEXT NOT NULL,
         resources TEXT NOT NULL,
         image VARCHAR(512) NOT NULL,
-        deployedAt VARCHAR(64) NOT NULL,
-        updatedAt VARCHAR(64) NOT NULL,
+        isDeleted TINYINT(1) NOT NULL DEFAULT 0,
+        deployedAt DATETIME(6) NOT NULL,
+        updatedAt DATETIME(6) NOT NULL,
         UNIQUE KEY uniq_namespace_deployment (namespace, deploymentName),
+        KEY idx_deployments_is_deleted (isDeleted),
         CONSTRAINT fk_deployments_version
             FOREIGN KEY (versionUuid) REFERENCES versions(uuid)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -108,8 +110,8 @@ SCHEMA_SQL = [
         imageTag VARCHAR(128) NULL,
         imageDigest VARCHAR(255) NULL,
         fullImageUri VARCHAR(512) NULL,
-        startedAt VARCHAR(64) NOT NULL,
-        finishedAt VARCHAR(64) NOT NULL,
+        startedAt DATETIME(6) NOT NULL,
+        finishedAt DATETIME(6) NULL,
         buildLogPath VARCHAR(255) NOT NULL,
         errorMessage TEXT NOT NULL,
         resultSummary TEXT NOT NULL,
@@ -137,6 +139,10 @@ def now_iso() -> str:
     return datetime.now(TZ).isoformat()
 
 
+def now_db() -> datetime:
+    return datetime.now(TZ).replace(tzinfo=None)
+
+
 def json_dumps(value: Any) -> str:
     return json.dumps(value or {}, ensure_ascii=False, separators=(",", ":"))
 
@@ -149,6 +155,28 @@ def json_loads(value: str | None) -> dict[str, Any]:
 
 def _normalize_query(query: str) -> str:
     return query.replace("?", "%s")
+
+
+def to_db_datetime(value: datetime | str | None) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        dt = datetime.fromisoformat(value)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(TZ)
+    return dt.replace(tzinfo=None)
+
+
+def _to_api_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=TZ).isoformat()
+    return value
+
+
+def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: _to_api_value(value) for key, value in row.items()}
 
 
 def _connect(*, use_database: bool = True, autocommit: bool = False) -> pymysql.connections.Connection:
@@ -176,7 +204,7 @@ def fetch_one(query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None
         with conn.cursor() as cursor:
             cursor.execute(_normalize_query(query), params)
             row = cursor.fetchone()
-        return dict(row) if row else None
+        return _normalize_row(dict(row)) if row else None
     finally:
         conn.close()
 
@@ -187,7 +215,7 @@ def fetch_all(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         with conn.cursor() as cursor:
             cursor.execute(_normalize_query(query), params)
             rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [_normalize_row(dict(row)) for row in rows]
     finally:
         conn.close()
 
@@ -269,7 +297,7 @@ def seed_data() -> None:
     if row and row["total"] > 0:
         return
 
-    created_at = now_iso()
+    created_at = now_db()
     algorithm_uuid = "alg-7f3d91b2-1f0f-4e1c-b123-001"
     version_v1_uuid = "ver-b4e1b301-cb17-44f9-a001-101"
     version_v2_uuid = "ver-a99d1c01-2f17-47f1-b001-102"
