@@ -21,7 +21,9 @@ func (s *ContainerService) UpdateVersion(name, namespace, versionUUID string) er
 	}
 
 	var ver model.AlgorithmVersion
-	if err := db.DB.Where("uuid = ?", versionUUID).First(&ver).Error; err != nil {
+	if err := db.DB.
+		Where("uuid = ? AND is_deleted = ?", versionUUID, 0).
+		First(&ver).Error; err != nil {
 		return fmt.Errorf("find algorithm version failed: %w", err)
 	}
 
@@ -51,10 +53,10 @@ func (s *ContainerService) UpdateVersion(name, namespace, versionUUID string) er
 	}
 
 	if err := db.DB.Model(&model.DeployRecord{}).
-		Where("k8s_deployment_name = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
+		Where("deploymentName = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
 		Updates(map[string]interface{}{
-			"version_uuid": versionUUID,
-			"image":        image,
+			"versionUuid": versionUUID,
+			"image":       image,
 		}).Error; err != nil {
 		return fmt.Errorf("update deploy record failed: %w", err)
 	}
