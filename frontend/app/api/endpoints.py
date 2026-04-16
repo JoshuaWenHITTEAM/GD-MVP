@@ -302,19 +302,23 @@ async def get_algorithm_file_content(algorithm_id: int, db: Session = Depends(ge
 #           p2部分接口
 #==================================
 
-# sessions接口需要进一步探讨传参
-# 等待完善！
 @router.post("/v1/agent-training/sessions")
-async def start_training(request: Request, background_tasks: BackgroundTasks):
-    """启动训练任务"""
-    # 这里是参数获取占位
-    # body = await request.json()
-    params_placeholder = {"info": "此处以后放置 P1 传来的算法 UUID"}
-    
+async def create_training_session(request: Request, background_tasks: BackgroundTasks):
+    # 解析前端传来的参数
+    try:
+        body = await request.json()
+    except:
+        body = {}
+        
+    module_type = body.get("module") # "processing", "det", "track"
+    if not module_type:
+        raise HTTPException(status_code=400, detail="Must specify 'module' parameter")
+
+    # 创建会话
     session_id = training_service.create_session()
     
-    # 后台执行
-    background_tasks.add_task(training_service.start_training_logic, session_id, params_placeholder)
+    # 启动后台逻辑，把整个 body 传进去（包含 module, learning_rate, epsilon）
+    background_tasks.add_task(training_service.start_training_logic, session_id, body)
     
     return {"session_id": session_id, "status": "started"}
 

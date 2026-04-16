@@ -1,38 +1,7 @@
 
-// 配置面板切换
-function toggleConfig() {
-    const content = document.getElementById('config-content');
-    const icon = document.getElementById('config-toggle-icon');
-    if (content.style.display === 'none') {
-        content.style.display = 'grid';
-        icon.style.transform = 'rotate(0deg)';
-    } else {
-        content.style.display = 'none';
-        icon.style.transform = 'rotate(-90deg)';
-    }
-}
 
-// 一键优化应用交互
-function applyOptimization() {
-    const btn = event.currentTarget;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span class="iconify mr-1 animate-spin" data-icon="material-symbols:autorenew"></span> 正在部署优化方案...';
-    btn.classList.add('bg-emerald-600');
 
-    setTimeout(() => {
-        btn.innerHTML = '<span class="iconify mr-1" data-icon="material-symbols:check-circle"></span> 优化方案已应用';
-        btn.classList.remove('bg-emerald-600');
-        btn.classList.add('bg-blue-600');
 
-        // 模拟 Agent 脉冲反馈
-        const agentIcon = document.querySelector('.agent-glow');
-        agentIcon.classList.add('scale-125', 'ring-8', 'ring-emerald-500');
-        setTimeout(() => {
-            agentIcon.classList.remove('scale-125', 'ring-8', 'ring-emerald-500');
-            btn.innerHTML = originalText;
-        }, 1500);
-    }, 1000);
-}
 
 // 初始化奖励变化图表
 const rewardChart = echarts.init(document.getElementById('rewardStats'));
@@ -75,18 +44,220 @@ window.addEventListener('resize', () => {
     rewardChart.resize();
 });
 
-// 简单的交互：点击 Agent 模拟一次重构动作
-document.querySelector('.group').addEventListener('click', () => {
-    const agentIcon = document.querySelector('.agent-glow');
-    agentIcon.classList.add('scale-125', 'ring-4', 'ring-blue-400');
-    setTimeout(() => {
-        agentIcon.classList.remove('scale-125', 'ring-4', 'ring-blue-400');
-    }, 500);
+let currentModule = 'processing'; // 当前选中的标签: processing, det, track
+let activeSessions = {}; // 记录状态: { 'processing': { sessionId: '...', isRunning: false, logs: [] } }
+let eventSource = null;
+let isExpectedClose = false;
+// let rewardChart = null;
 
-    // 可以在这里模拟数据刷新
-    console.log("手动触发链路重构分析...");
+document.addEventListener('DOMContentLoaded', () => {
+    initChart();
+    switchTab('processing'); // 初始进入预处理页
+    
+    // 监听窗口缩放，防止图表变形
+    window.addEventListener('resize', () => {
+        if (rewardChart) rewardChart.resize();
+    });
 });
 
+// --- 1. UI 逻辑：标签切换 ---
+function switchTab(moduleName) {
+    currentModule = moduleName;
+    isExpectedClose = false;
+
+    // 切换标签样式
+    document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`tab-${moduleName}`).classList.add('active');
+
+    // 更新左侧卡片静态内容与视觉风格
+    const moduleConfigs = {
+        'processing': { name: '图像预处理模块', icon: 'filter-vintage-outline', color: '#3b82f6', desc: '负责多维信号对齐、非线性噪声抑制及局部对比度动态增强。', tag: 'MODULE: PROCESSING' },
+        'det': { name: '目标检测重构项', icon: 'target', color: '#f59e0b', desc: '动态载入检测头，在精度与速度之间基于实时算力进行平衡决策。', tag: 'MODULE: DETECTION' },
+        'track': { name: '多目标链路跟踪', icon: 'share-location-outline', color: '#10b981', desc: '自适应卡尔曼滤波参数调整，减少复杂背景下遮挡导致的目标丢失率。', tag: 'MODULE: TRACKING' }
+    };
+
+    const config = moduleConfigs[moduleName];
+    document.getElementById('module-display-name').textContent = config.name;
+    document.getElementById('module-desc').textContent = config.desc;
+    document.getElementById('active-tag').textContent = config.tag;
+    
+    const iconEl = document.getElementById('module-icon');
+    iconEl.dataset.icon = `material-symbols:${config.icon}`;
+    iconEl.style.color = config.color;
+    document.getElementById('module-icon-bg').style.boxShadow = `0 0 20px ${config.color}33`;
+
+    // 刷新按钮状态：如果该模块正在运行，则保持“终止”可用
+    updateButtonsByStatus();
+    
+    // 切换卡片时的扫描特效（可选）
+    const card = document.getElementById('active-module-card');
+    card.classList.add('scan-effect');
+    setTimeout(() => card.classList.remove('scan-effect'), 1500);
+}
+
+// --- 2. 核心功能：启动与停止 ---
+async function handleStart() {
+    const lr = document.getElementById('param-lr').value;
+    const eps = document.getElementById('param-epsilon').value;
+
+    setUIState(true);
+    resetMetrics(); // 开始前重置进度条
+
+    try {
+        const response = await fetch('/api/v1/agent-training/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                module: currentModule, // 必传
+                learning_rate: lr, 
+                epsilon: eps 
+            })
+        });
+        const data = await response.json();
+        const sid = data.session_id;
+
+        activeSessions[currentModule] = { sessionId: sid, isRunning: true };
+        startSSE(sid);
+    } catch (e) {
+        appendLog({ message: "启动失败: 连接后端超时", status: "failed" });
+        setUIState(false);
+    }
+}
+
+async function handleStop() {
+    const session = activeSessions[currentModule];
+    if (!session || !session.sessionId) return;
+
+    const stopBtn = document.getElementById('stop-btn');
+    stopBtn.innerHTML = '<span class="iconify animate-spin" data-icon="material-symbols:sync"></span>停止中...';
+    
+    await fetch(`/api/v1/agent-training/sessions/${session.sessionId}/stop`, { method: 'POST' });
+}
+
+// --- 3. SSE 数据处理 ---
+function startSSE(sid) {
+    if (eventSource) eventSource.close();
+    isExpectedClose = false;
+    eventSource = new EventSource(`/api/v1/agent-training/sessions/${sid}/events`);
+
+    eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        appendLog(data);
+
+        // 只有当前正在查看的 Tab 才更新实时卡片和指标
+        if (data.status) {
+            updateLiveUI(data);
+        }
+
+        if (['success', 'failed', 'terminated'].includes(data.status)) {
+            isExpectedClose = true;
+            setTimeout(() => closeConnection(), 500);
+        }
+    };
+
+    eventSource.onerror = () => {
+        if (!isExpectedClose) {
+            appendLog({ message: "日志流异常中断", status: "failed" });
+            closeConnection();
+        }
+    };
+}
+
+// 更新界面上的进度条、图表、卡片状态
+function updateLiveUI(data) {
+    // 1. 更新卡片状态标签和算法名
+    const statusTag = document.getElementById('module-status-tag');
+    statusTag.textContent = data.status === 'running' ? '运行中' : '已完成';
+    statusTag.className = `text-[10px] px-2 py-1 rounded-full border ${data.status === 'running' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700'}`;
+    
+    if (data.algo_name) document.getElementById('module-algo').textContent = data.algo_name;
+    if (data.version) document.getElementById('module-ver').textContent = data.version;
+
+    // 2. 更新性能指标进度条 (模拟逻辑，实际可由后端传具体数值)
+    if (data.seq) {
+        updateProgressBar('step', data.seq, 10); // 假设总共10步
+        updateProgressBar('ram', Math.floor(Math.random() * 20 + 60), 100); // 模拟
+        updateProgressBar('vram', Math.floor(Math.random() * 15 + 70), 100); // 模拟
+    }
+
+    // 3. 更新 ECharts (Reward 曲线)
+    if (data.seq) {
+        updateChart(data.seq, Math.random() * 10); // 模拟 Reward
+    }
+}
+
+// --- 辅助工具函数 ---
+function updateProgressBar(id, val, max) {
+    const percent = Math.min((val / max) * 100, 100);
+    document.getElementById(`label-${id}`).textContent = id === 'step' ? val.toString().padStart(4, '0') : `${val}%`;
+    document.getElementById(`bar-${id}`).style.width = `${percent}%`;
+}
+
+function setUIState(running) {
+    activeSessions[currentModule] = activeSessions[currentModule] || {};
+    activeSessions[currentModule].isRunning = running;
+    updateButtonsByStatus();
+}
+
+function updateButtonsByStatus() {
+    const isRunning = activeSessions[currentModule]?.isRunning || false;
+    const sBtn = document.getElementById('start-btn');
+    const tBtn = document.getElementById('stop-btn');
+
+    sBtn.disabled = isRunning;
+    tBtn.disabled = !isRunning;
+    
+    if (isRunning) {
+        sBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        tBtn.classList.remove('text-slate-500', 'cursor-not-allowed');
+        tBtn.classList.add('bg-red-600/20', 'text-red-400', 'border-red-500/50', 'hover:bg-red-600/30');
+    } else {
+        sBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        tBtn.classList.add('text-slate-500', 'cursor-not-allowed');
+        tBtn.classList.remove('bg-red-600/20', 'text-red-400', 'border-red-500/50', 'hover:bg-red-600/30');
+        tBtn.innerHTML = '<span class="iconify" data-icon="material-symbols:stop-circle-outline"></span>终止';
+    }
+}
+
+/*
+function initChart() {
+    rewardChart = echarts.init(document.getElementById('rewardStats'), 'dark');
+    const option = {
+        backgroundColor: 'transparent',
+        grid: { top: 10, bottom: 20, left: 30, right: 10 },
+        xAxis: { type: 'category', boundaryGap: false, axisLine: { show: false } },
+        yAxis: { type: 'value', splitLine: { lineStyle: { color: '#1e293b' } } },
+        series: [{
+            type: 'line', smooth: true,
+            areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{offset: 0, color: '#3b82f644'}, {offset: 1, color: '#3b82f600'}]) },
+            data: []
+        }]
+    };
+    rewardChart.setOption(option);
+}
+    
+
+function updateChart(step, value) {
+    const option = rewardChart.getOption();
+    option.series[0].data.push([step, value]);
+    rewardChart.setOption(option);
+}
+*/
+
+function resetMetrics() {
+    ['step', 'ram', 'vram'].forEach(id => updateProgressBar(id, 0, 100));
+    if (rewardChart) rewardChart.setOption({ series: [{ data: [] }] });
+}
+
+function closeConnection() {
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+    setUIState(false);
+}
+
+/*
 // 控制台日志部分：使用 SSE 实时接收后端日志并渲染
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -241,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
              * 通用的卡片更新函数
              * @param {string} index - '01', '02', 或 '03'
              * @param {object} data - 后端传来的 JSON 对象
-             */
+             *//*
             function updateCardUI(index, data) {
                 const statusEl = document.getElementById(`status-${index}`);
                 const algoEl = document.getElementById(`algo-${index}`);
@@ -330,5 +501,5 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSessionId = null;
         setUIState(false);
     }
-});
+});*/
 

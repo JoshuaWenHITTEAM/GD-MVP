@@ -21,9 +21,11 @@ app.add_middleware(
 """
 
 # 启动时初始化数据库
+"""
 @app.on_event("startup")
 async def startup_event():
     init_db()
+"""
 
 
 # 1. 自动计算路径
