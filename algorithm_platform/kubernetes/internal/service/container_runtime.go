@@ -1,12 +1,12 @@
 package service
 
 import (
-	"context"
-
 	"algo-container-manager/internal/db"
 	"algo-container-manager/internal/k8s"
 	"algo-container-manager/internal/model"
+	"context"
 
+	"gorm.io/gorm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,7 +18,7 @@ func (s *ContainerService) ListDeployRecords() ([]model.DeployRecord, error) {
 	var records []model.DeployRecord
 	if err := db.DB.
 		Where("is_deleted = ?", 0).
-		Order("id desc").
+		Order("deployedAt desc").
 		Find(&records).Error; err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func (s *ContainerService) ListDeployRecords() ([]model.DeployRecord, error) {
 
 	if err := db.DB.
 		Where("is_deleted = ?", 0).
-		Order("id desc").
+		Order("deployedAt desc").
 		Find(&records).Error; err != nil {
 		return nil, err
 	}
@@ -67,16 +67,18 @@ func (s *ContainerService) GetStatus(name, namespace string) (map[string]interfa
 
 func (s *ContainerService) updateDeployStatus(name, namespace, status string) {
 	_ = db.DB.Model(&model.DeployRecord{}).
-		Where("k8s_deployment_name = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
-		Update("deploy_status", status).Error
+		Where("deploymentName = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
+		Update("status", status).Error
 }
 
 func (s *ContainerService) deleteDeployRecord(name, namespace string) error {
-	return db.DB.Model(&model.DeployRecord{}).
-		Where("k8s_deployment_name = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
-		Updates(map[string]interface{}{
-			"is_deleted":    1,
-			"deploy_status": "deleted",
+	return db.DB.Debug().
+		Model(&model.DeployRecord{}).
+		Where("deploymentName = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
+		UpdateColumns(map[string]interface{}{
+			"is_deleted":  1,
+			"status":      "deleted",
+			"active_flag": gorm.Expr("NULL"),
 		}).Error
 }
 
