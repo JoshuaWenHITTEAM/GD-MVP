@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"algo-container-manager/internal/common"
 	"algo-container-manager/internal/db"
@@ -57,7 +58,7 @@ func (s *ContainerService) resolveVersionForStart(req *model.StartAlgorithmReque
 	// 新逻辑：传了 versionUuid，就查版本表
 	if req.VersionUUID != "" {
 		var ver model.AlgorithmVersion
-		if err := db.DB.Where("uuid = ?", req.VersionUUID).First(&ver).Error; err != nil {
+		if err := db.DB.Where("uuid = ? AND is_deleted = ?", req.VersionUUID, 0).First(&ver).Error; err != nil {
 			return fmt.Errorf("algorithm version not found: %w", err)
 		}
 
@@ -138,6 +139,8 @@ func (s *ContainerService) buildDeployRecord(req model.StartAlgorithmRequest, ui
 		"memory": req.Memory,
 	})
 
+	active := 1
+	now := time.Now()
 	return model.DeployRecord{
 		UUID:              uid,
 		VersionUUID:       req.VersionUUID,
@@ -153,7 +156,9 @@ func (s *ContainerService) buildDeployRecord(req model.StartAlgorithmRequest, ui
 		ErrorMessage:      "",
 		Env:               string(envJSON),
 		Resources:         string(resourcesJSON),
+		DeployedAt:        &now,
 		IsDeleted:         0,
+		ActiveFlag:        &active,
 	}
 }
 
