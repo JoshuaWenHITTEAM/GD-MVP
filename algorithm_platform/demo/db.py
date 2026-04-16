@@ -14,9 +14,9 @@ RUNTIME_ROOT = BASE_DIR / "runtime"
 SCHEMA_VERSION = "2026-04-15-mysql-datetime"
 
 DB_HOST = os.getenv("DEMO_DB_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("DEMO_DB_PORT", "3306"))
-DB_USER = os.getenv("DEMO_DB_USER", "lurunda")
-DB_PASSWORD = os.getenv("DEMO_DB_PASSWORD", "G7v!Q2m#L9x@R4pZ")
+DB_PORT = int(os.getenv("DEMO_DB_PORT", "3307"))
+DB_USER = os.getenv("DEMO_DB_USER", "root")
+DB_PASSWORD = os.getenv("DEMO_DB_PASSWORD", "123456")
 DB_NAME = os.getenv("DEMO_DB_NAME", "algo_manager")
 DB_CHARSET = "utf8mb4"
 DB_PATH = f"mysql://{DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
@@ -63,8 +63,9 @@ SCHEMA_SQL = [
         fullImageUri VARCHAR(512) NOT NULL,
         imageSize BIGINT NULL,
         publishStatus VARCHAR(32) NOT NULL,
-        createdAt DATETIME(6) NOT NULL,
-        updatedAt DATETIME(6) NOT NULL,
+        is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+        createdAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uniq_algorithm_version (algorithmUuid, version),
         CONSTRAINT fk_versions_algorithm
             FOREIGN KEY (algorithmUuid) REFERENCES algorithms(uuid)
@@ -87,14 +88,23 @@ SCHEMA_SQL = [
         env TEXT NOT NULL,
         resources TEXT NOT NULL,
         image VARCHAR(512) NOT NULL,
-        isDeleted TINYINT(1) NOT NULL DEFAULT 0,
-        deployedAt DATETIME(6) NOT NULL,
-        updatedAt DATETIME(6) NOT NULL,
-        UNIQUE KEY uniq_namespace_deployment (namespace, deploymentName),
-        KEY idx_deployments_is_deleted (isDeleted),
+
+        
+        is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+        active_flag TINYINT(1) DEFAULT 1,
+        
+        deployedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        
+        UNIQUE KEY uniq_namespace_deployment (namespace, deploymentName, active_flag),
+        KEY idx_deployments_version_uuid (versionUuid),
+        KEY idx_deployments_status (status),
+        KEY idx_deployments_namespace (namespace),
+        KEY idx_deployments_is_deleted (is_deleted),
+
         CONSTRAINT fk_deployments_version
-            FOREIGN KEY (versionUuid) REFERENCES versions(uuid)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        FOREIGN KEY (versionUuid) REFERENCES versions(uuid)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """,
     """
     CREATE TABLE IF NOT EXISTS build_records (
@@ -291,7 +301,6 @@ def init_database() -> None:
     finally:
         conn.close()
 
-
 def seed_data() -> None:
     row = fetch_one("SELECT COUNT(*) AS total FROM algorithms")
     if row and row["total"] > 0:
@@ -301,9 +310,11 @@ def seed_data() -> None:
     algorithm_uuid = "alg-7f3d91b2-1f0f-4e1c-b123-001"
     version_v1_uuid = "ver-b4e1b301-cb17-44f9-a001-101"
     version_v2_uuid = "ver-a99d1c01-2f17-47f1-b001-102"
+
     conn = get_conn()
     try:
         with conn.cursor() as cursor:
+            # 插入算法
             cursor.execute(
                 """
                 INSERT INTO algorithms (
@@ -325,14 +336,17 @@ def seed_data() -> None:
                     created_at,
                 ),
             )
+
+            # 插入版本（重点：带 is_deleted）
             cursor.executemany(
                 """
                 INSERT INTO versions (
                     uuid, algorithmUuid, version, versionName, entrypoint,
                     codePath, configPath, changelog, sourceType, localImageName,
                     imagePullPolicy, registryUrl, repositoryName, imageTag,
-                    imageDigest, fullImageUri, imageSize, publishStatus, createdAt, updatedAt
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    imageDigest, fullImageUri, imageSize, publishStatus,
+                    is_deleted, createdAt, updatedAt
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
                     (
@@ -345,15 +359,16 @@ def seed_data() -> None:
                         "/configs/yolo.yaml",
                         "初始版本，支持基础目标检测",
                         "local",
-                        "yolo-base:v1-gpu",
-                        "Never",
-                        "registry.example.com",
-                        "algo/yolo",
-                        "v1-gpu",
-                        "sha256:abcd1234",
-                        "registry.example.com/algo/yolo:v1-gpu",
+                        "gd-docker-preprocess:v1",   # 建议本地镜像
+                        "IfNotPresent",
+                        "",
+                        "gd-docker-preprocess",
+                        "v1",
+                        "",
+                        "gd-docker-preprocess:v1",
                         536870912,
                         "PUBLISHED",
+                        0,
                         created_at,
                         created_at,
                     ),
@@ -367,24 +382,25 @@ def seed_data() -> None:
                         "/configs/yolo_debug.yaml",
                         "新增调试参数和可视化输出",
                         "local",
-                        "yolo-base:v1-gpu",
-                        "Never",
-                        "registry.example.com",
-                        "algo/yolo",
-                        "v1-gpu",
-                        "sha256:abcd1234",
-                        "registry.example.com/algo/yolo:v1-gpu",
+                        "gd-docker-preprocess:v2",
+                        "IfNotPresent",
+                        "",
+                        "gd-docker-preprocess",
+                        "v2",
+                        "",
+                        "gd-docker-preprocess:v2",
                         536870912,
                         "PUBLISHED",
+                        0,
                         created_at,
                         created_at,
                     ),
                 ],
             )
+
         conn.commit()
     finally:
         conn.close()
-
 
 def ensure_database() -> None:
     ensure_database_exists()
