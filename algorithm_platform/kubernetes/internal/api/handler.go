@@ -186,7 +186,8 @@ func (h *Handler) UpdateContainerImage(context *gin.Context) {
 		return
 	}
 
-	if err := h.containerSvc.UpdateImage(name, namespace, req.Image); err != nil {
+	versionUUID, err := h.containerSvc.UpdateImage(name, namespace, req.Image)
+	if err != nil {
 		common.Fail(context, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -195,9 +196,9 @@ func (h *Handler) UpdateContainerImage(context *gin.Context) {
 		"deploymentName": name,
 		"namespace":      namespace,
 		"image":          req.Image,
+		"versionUuid":    versionUUID,
 	})
 }
-
 func (h *Handler) UpdateContainerVersion(context *gin.Context) {
 	name := context.Param("name")
 	namespace := context.DefaultQuery("namespace", "default")
