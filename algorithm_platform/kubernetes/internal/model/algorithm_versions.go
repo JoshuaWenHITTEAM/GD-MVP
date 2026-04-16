@@ -2,33 +2,43 @@ package model
 
 import "time"
 
-// AlgorithmVersion 表示一个可部署的算法版本。
-// 这张表只保留部署侧真正需要的字段：版本标识、镜像信息、启动信息、发布状态。
+// AlgorithmVersion 映射共享表 versions
 type AlgorithmVersion struct {
-	UUID string `gorm:"type:varchar(64);primaryKey" json:"uuid"`
+	UUID string `gorm:"column:uuid;type:varchar(64);primaryKey" json:"uuid"`
 
-	AlgorithmCode string `gorm:"type:varchar(64);index;not null" json:"algorithmCode"`
-	AlgorithmName string `gorm:"type:varchar(128);not null" json:"algorithmName"`
-	Version       string `gorm:"type:varchar(64);not null" json:"version"`
-	VersionName   string `gorm:"type:varchar(128)" json:"versionName"`
+	AlgorithmUUID string `gorm:"column:algorithmUuid;type:varchar(64);not null;index" json:"algorithmUuid"`
 
-	Entrypoint string `gorm:"type:varchar(255)" json:"entrypoint"`
+	// 暂时保留，避免别的代码大面积报错，但不映射数据库
+	AlgorithmCode string `gorm:"-" json:"algorithmCode"`
+	AlgorithmName string `gorm:"-" json:"algorithmName"`
+	RuntimeType   string `gorm:"-" json:"runtimeType"`
 
-	RuntimeType string `gorm:"type:varchar(32)" json:"runtimeType"`
-	ConfigPath  string `gorm:"type:varchar(255)" json:"configPath"`
-	SourceType  string `gorm:"type:varchar(32)" json:"sourceType"`
+	Version     string `gorm:"column:version;type:varchar(64);not null" json:"version"`
+	VersionName string `gorm:"column:versionName;type:varchar(128);not null" json:"versionName"`
 
-	LocalImageName  string `gorm:"type:varchar(255)" json:"localImageName"`
-	ImagePullPolicy string `gorm:"type:varchar(32)" json:"imagePullPolicy"`
-	FullImageURI    string `gorm:"type:varchar(512)" json:"fullImageUri"`
-	ImageSize       string `gorm:"type:varchar(64)" json:"imageSize"`
+	Entrypoint string `gorm:"column:entrypoint;type:varchar(255);not null" json:"entrypoint"`
+	CodePath   string `gorm:"column:codePath;type:varchar(255);not null" json:"codePath"`
+	ConfigPath string `gorm:"column:configPath;type:varchar(255);not null" json:"configPath"`
+	Changelog  string `gorm:"column:changelog;type:text;not null" json:"changelog"`
 
-	// PublishStatus：发布状态，例如 DRAFT / PUBLISHED / OFFLINE。
-	// DRAFT：草稿，未发布
-	// PUBLISHED：已发布，可部署
-	// OFFLINE：已下线，不建议继续部署
-	PublishStatus string `gorm:"type:varchar(32);index" json:"publishStatus"`
+	SourceType      string `gorm:"column:sourceType;type:varchar(32);not null" json:"sourceType"`
+	LocalImageName  string `gorm:"column:localImageName;type:varchar(255);not null" json:"localImageName"`
+	ImagePullPolicy string `gorm:"column:imagePullPolicy;type:varchar(32);not null" json:"imagePullPolicy"`
+	RegistryURL     string `gorm:"column:registryUrl;type:varchar(255);not null" json:"registryUrl"`
+	RepositoryName  string `gorm:"column:repositoryName;type:varchar(255);not null" json:"repositoryName"`
+	ImageTag        string `gorm:"column:imageTag;type:varchar(128);not null" json:"imageTag"`
+	ImageDigest     string `gorm:"column:imageDigest;type:varchar(255)" json:"imageDigest"`
+	FullImageURI    string `gorm:"column:fullImageUri;type:varchar(512);not null" json:"fullImageUri"`
+	ImageSize       int64  `gorm:"column:imageSize" json:"imageSize"`
 
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	PublishStatus string `gorm:"column:publishStatus;type:varchar(32);not null;index" json:"publishStatus"`
+
+	IsDeleted int `gorm:"column:is_deleted;type:tinyint(1);not null;default:0;index" json:"isDeleted"`
+
+	CreatedAt *time.Time `gorm:"column:createdAt" json:"createdAt"`
+	UpdatedAt *time.Time `gorm:"column:updatedAt" json:"updatedAt"`
+}
+
+func (AlgorithmVersion) TableName() string {
+	return "versions"
 }
