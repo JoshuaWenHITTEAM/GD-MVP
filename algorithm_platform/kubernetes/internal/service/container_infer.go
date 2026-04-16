@@ -27,7 +27,7 @@ func (s *ContainerService) Infer(name, namespace, filename string, content []byt
 func (s *ContainerService) resolveServiceName(name, namespace string) (string, error) {
 	var record model.DeployRecord
 	err := db.DB.
-		Where("k8s_deployment_name=? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
+		Where("deploymentName = ? AND namespace = ? AND is_deleted = ?", name, namespace, 0).
 		First(&record).Error
 	if err == nil && record.K8sServiceName != "" {
 		return record.K8sServiceName, nil
