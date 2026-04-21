@@ -1,6 +1,7 @@
 package api
 
 import (
+	"io"
 	"net/http"
 
 	"algo-container-manager/internal/common"
@@ -126,4 +127,101 @@ func (h *Handler) GetContainerStatus(c *gin.Context) {
 	}
 
 	common.Success(c, status)
+}
+
+func (h *Handler) InferContainer(context *gin.Context) {
+	name := context.Param("name")
+	namespace := context.DefaultQuery("namespace", "default")
+
+	fileHeader, err := context.FormFile("file")
+	if err != nil {
+		common.Fail(context, http.StatusBadRequest, "file is required")
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		common.Fail(context, http.StatusBadRequest, "open uploaded file failed")
+		return
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		common.Fail(context, http.StatusBadRequest, "read upload file failed")
+		return
+	}
+
+	fields := map[string]string{}
+	form, _ := context.MultipartForm()
+	if form != nil {
+		for key, vals := range form.Value {
+			if len(vals) > 0 {
+				fields[key] = vals[0]
+			}
+		}
+	}
+
+	raw, err := h.containerSvc.Infer(name, namespace, fileHeader.Filename, content, fields)
+	if err != nil {
+		common.Fail(context, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	context.Data(http.StatusOK, "application/json; charset = utf-8", raw)
+}
+
+func (h *Handler) UpdateContainerImage(context *gin.Context) {
+	name := context.Param("name")
+	namespace := context.DefaultQuery("namespace", "default")
+
+	var req model.UpdateImageRequest
+	if err := context.ShouldBindJSON(&req); err != nil {
+		common.Fail(context, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.Image == "" {
+		common.Fail(context, http.StatusBadRequest, "image is required")
+		return
+	}
+
+	versionUUID, err := h.containerSvc.UpdateImage(name, namespace, req.Image)
+	if err != nil {
+		common.Fail(context, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	common.Success(context, gin.H{
+		"deploymentName": name,
+		"namespace":      namespace,
+		"image":          req.Image,
+		"versionUuid":    versionUUID,
+	})
+}
+func (h *Handler) UpdateContainerVersion(context *gin.Context) {
+	name := context.Param("name")
+	namespace := context.DefaultQuery("namespace", "default")
+
+	var req model.UpdateVersionRequest
+	if err := context.ShouldBindJSON(&req); err != nil {
+		common.Fail(context, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.VersionUUID == "" {
+		common.Fail(context, http.StatusBadRequest, "versionUuid is required")
+		return
+	}
+
+	if err := h.containerSvc.UpdateVersion(name, namespace, req.VersionUUID); err != nil {
+		common.Fail(context, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	common.Success(context, gin.H{
+		"deploymentName": name,
+		"namespace":      namespace,
+		"versionUuid":    req.VersionUUID,
+	})
 }

@@ -2,7 +2,7 @@ import re
 from typing import Any
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, FastAPI, Query, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -13,39 +13,27 @@ from db import (
     fetch_all,
     fetch_one,
     json_dumps,
-    now_iso,
-    parse_container,
+    now_db,
     parse_deployment,
-    parse_image,
+    to_db_datetime,
 )
 from models import (
     CreateAlgorithmRequest,
-    CreateContainerRequest,
-    CreateDebugSessionRequest,
+    CreateBuildRecordRequest,
     CreateDeploymentRequest,
-    CreateImageRequest,
     CreateVersionRequest,
-    HotUpdateRequest,
     ScaleRequest,
     UpdateAlgorithmRequest,
+    UpdateBuildRecordRequest,
+    UpdateDeploymentRequest,
     UpdateVersionRequest,
-)
-from runtime import (
-    MUTABLE_DEBUG_SESSION_STATUSES,
-    delete_session_runtime,
-    provision_debug_session,
-    run_hot_update_job,
-    runtime_path_for_session,
-    stop_debug_process,
-    sync_session_state_file,
-    update_debug_session,
 )
 
 
 app = FastAPI(
     title="光电感知系统 Demo Backend",
     version="0.6.0",
-    description="按 Apifox 导出文档整理的 Python/FastAPI demo 后端，使用 SQLite 持久化存储",
+    description="按 Apifox 导出文档整理的 Python/FastAPI demo 后端，使用 MySQL 持久化存储",
 )
 
 app.add_middleware(
@@ -59,9 +47,13 @@ app.add_middleware(
 ensure_database()
 
 ACTIVE_DEPLOYMENT_STATUSES = ("PENDING", "RUNNING", "UPDATING", "SCALING")
-ACTIVE_HOT_UPDATE_STATUSES = ("PENDING", "RUNNING")
 ACTIVE_DEPLOYMENT_SQL = ", ".join(f"'{status}'" for status in ACTIVE_DEPLOYMENT_STATUSES)
-ACTIVE_HOT_UPDATE_SQL = ", ".join(f"'{status}'" for status in ACTIVE_HOT_UPDATE_STATUSES)
+VERSION_PUBLISH_STATUSES = ("DRAFT", "PUBLISHED", "OFFLINE")
+VERSION_PUBLISH_TRANSITIONS: dict[str, set[str]] = {
+    "DRAFT": {"DRAFT", "PUBLISHED"},
+    "PUBLISHED": {"PUBLISHED", "OFFLINE"},
+    "OFFLINE": {"OFFLINE", "PUBLISHED"},
+}
 
 
 def gen_uuid(prefix: str) -> str:
@@ -112,6 +104,36 @@ def ensure(condition: bool, code: int, message: str) -> None:
         raise ApiError(code, message)
 
 
+def ensure_publish_status_transition(current_status: str, next_status: str) -> None:
+    ensure(
+        current_status in VERSION_PUBLISH_STATUSES,
+        400,
+        f"unsupported current publishStatus: {current_status}",
+    )
+    ensure(
+        next_status in VERSION_PUBLISH_STATUSES,
+        400,
+        f"unsupported target publishStatus: {next_status}",
+    )
+    ensure(
+        next_status in VERSION_PUBLISH_TRANSITIONS[current_status],
+        400,
+        (
+            "invalid publishStatus transition: "
+            f"{current_status} -> {next_status}; "
+            "allowed transitions are DRAFT->PUBLISHED, PUBLISHED->OFFLINE, OFFLINE->PUBLISHED"
+        ),
+    )
+
+
+def ensure_version_can_be_deployed(version: dict[str, Any]) -> None:
+    ensure(
+        version["publishStatus"] == "PUBLISHED",
+        400,
+        "only PUBLISHED versions can be deployed",
+    )
+
+
 def paginate(items: list[dict[str, Any]], page_num: int, page_size: int) -> dict[str, Any]:
     safe_page_num = max(page_num, 1)
     safe_page_size = max(page_size, 1)
@@ -160,6 +182,8 @@ def version_summary(item: dict[str, Any]) -> dict[str, Any]:
         "version": item["version"],
         "versionName": item["versionName"],
         "entrypoint": item["entrypoint"],
+        "sourceType": item["sourceType"],
+        "fullImageUri": item["fullImageUri"],
         "publishStatus": item["publishStatus"],
         "updatedAt": item["updatedAt"],
     }
@@ -172,42 +196,37 @@ def version_detail(item: dict[str, Any]) -> dict[str, Any]:
         "version": item["version"],
         "versionName": item["versionName"],
         "entrypoint": item["entrypoint"],
+        "codePath": item["codePath"],
         "configPath": item["configPath"],
         "changelog": item["changelog"],
-        "publishStatus": item["publishStatus"],
-        "createdAt": item["createdAt"],
-        "updatedAt": item["updatedAt"],
-    }
-
-
-def image_detail(item: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "uuid": item["uuid"],
-        "algorithmVersionUuid": item["algorithmVersionUuid"],
+        "sourceType": item["sourceType"],
+        "localImageName": item["localImageName"],
+        "imagePullPolicy": item["imagePullPolicy"],
         "registryUrl": item["registryUrl"],
         "repositoryName": item["repositoryName"],
         "imageTag": item["imageTag"],
         "imageDigest": item["imageDigest"],
         "fullImageUri": item["fullImageUri"],
         "imageSize": item["imageSize"],
-        "isAvailable": item["isAvailable"],
+        "publishStatus": item["publishStatus"],
         "createdAt": item["createdAt"],
+        "updatedAt": item["updatedAt"],
     }
-
 
 def deployment_summary(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "uuid": item["uuid"],
-        "algorithmVersionUuid": item["algorithmVersionUuid"],
-        "imageUuid": item["imageUuid"],
+        "versionUuid": item["versionUuid"],
         "namespace": item["namespace"],
         "deploymentName": item["deploymentName"],
         "serviceName": item["serviceName"],
         "status": item["status"],
+        "image": item["image"],
         "accessEndpoint": item["accessEndpoint"],
         "replicas": item["replicas"],
         "readyReplicas": item["readyReplicas"],
         "port": item["port"],
+        "is_deleted": item["is_deleted"],
         "updatedAt": item["updatedAt"],
     }
 
@@ -223,47 +242,35 @@ def deployment_detail(item: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
-def debug_session_summary(item: dict[str, Any]) -> dict[str, Any]:
+def build_record_summary(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "uuid": item["uuid"],
-        "sessionName": item["sessionName"],
-        "namespace": item["namespace"],
-        "podName": item["podName"],
-        "currentVersionUuid": item["currentVersionUuid"],
-        "debugStatus": item["debugStatus"],
-        "processPid": item.get("processPid"),
-        "lastError": item["lastError"],
-        "createdAt": item["createdAt"],
-        "updatedAt": item["updatedAt"],
-    }
-
-
-def debug_session_detail(item: dict[str, Any]) -> dict[str, Any]:
-    detail = debug_session_summary(item)
-    detail.update(
-        {
-            "algorithmUuid": item["algorithmUuid"],
-            "baseVersionUuid": item["baseVersionUuid"],
-            "runtimePath": item["runtimePath"],
-        }
-    )
-    return detail
-
-
-def hot_update_detail(item: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "uuid": item["uuid"],
-        "fromVersionUuid": item["fromVersionUuid"],
-        "toVersionUuid": item["toVersionUuid"],
-        "updateType": item["updateType"],
-        "updateStatus": item["updateStatus"],
+        "algorithmUuid": item["algorithmUuid"],
+        "baseVersionUuid": item["baseVersionUuid"],
+        "outputVersionUuid": item["outputVersionUuid"],
+        "buildStatus": item["buildStatus"],
         "operator": item["operator"],
         "startedAt": item["startedAt"],
         "finishedAt": item["finishedAt"],
-        "errorMessage": item["errorMessage"],
-        "resultSummary": item["resultSummary"],
-        "actionLogPath": item["actionLogPath"],
     }
+
+
+def build_record_detail(item: dict[str, Any]) -> dict[str, Any]:
+    detail = build_record_summary(item)
+    detail.update(
+        {
+            "buildSource": item["buildSource"],
+            "sourceRevision": item["sourceRevision"],
+            "configRevision": item["configRevision"],
+            "imageTag": item["imageTag"],
+            "imageDigest": item["imageDigest"],
+            "fullImageUri": item["fullImageUri"],
+            "buildLogPath": item["buildLogPath"],
+            "errorMessage": item["errorMessage"],
+            "resultSummary": item["resultSummary"],
+        }
+    )
+    return detail
 
 
 def deployment_endpoint(name: str, namespace: str, port: int) -> str:
@@ -296,14 +303,6 @@ def generate_deployment_name(algorithm_code: str, version: str, namespace: str) 
     )
 
 
-def generate_container_name(name: str, version: str | None, namespace: str) -> str:
-    return generate_unique_name(
-        "containers",
-        f"{slugify(name)}-{slugify(version or 'v1')}",
-        namespace,
-    )
-
-
 def require_record(table: str, uuid: str, message: str) -> dict[str, Any]:
     item = fetch_one(f"SELECT * FROM {table} WHERE uuid = ?", (uuid,))
     ensure(item is not None, 404, message)
@@ -318,25 +317,30 @@ def require_version(uuid: str, message: str = "version not found") -> dict[str, 
     return require_record("versions", uuid, message)
 
 
-def require_image(uuid: str) -> dict[str, Any]:
-    return parse_image(require_record("images", uuid, "image not found"))
+def require_build_record(uuid: str) -> dict[str, Any]:
+    return require_record("build_records", uuid, "build record not found")
 
 
-def require_debug_session(uuid: str) -> dict[str, Any]:
-    return require_record("debug_sessions", uuid, "debug session not found")
+def require_deployment(uuid: str, message: str = "deployment not found") -> dict[str, Any]:
+    item = fetch_one(
+        "SELECT * FROM deployments WHERE uuid = ? AND is_deleted = 0",
+        (uuid,),
+    )
+    ensure(item is not None, 404, message)
+    return item  # type: ignore[return-value]
 
 
-def touch_algorithm(uuid: str, updated_at: str | None = None) -> None:
+def touch_algorithm(uuid: str, updated_at: Any | None = None) -> None:
     execute(
         "UPDATE algorithms SET updatedAt = ? WHERE uuid = ?",
-        (updated_at or now_iso(), uuid),
+        (updated_at or now_db(), uuid),
     )
 
 
-def touch_version(uuid: str, updated_at: str | None = None) -> None:
+def touch_version(uuid: str, updated_at: Any | None = None) -> None:
     execute(
         "UPDATE versions SET updatedAt = ? WHERE uuid = ?",
-        (updated_at or now_iso(), uuid),
+        (updated_at or now_db(), uuid),
     )
 
 
@@ -345,7 +349,7 @@ def has_active_deployment(where_clause: str, params: tuple[Any, ...]) -> bool:
         f"""
         SELECT uuid
         FROM deployments
-        WHERE {where_clause} AND status IN ({ACTIVE_DEPLOYMENT_SQL})
+        WHERE is_deleted = 0 AND {where_clause} AND status IN ({ACTIVE_DEPLOYMENT_SQL})
         LIMIT 1
         """,
         params,
@@ -353,47 +357,26 @@ def has_active_deployment(where_clause: str, params: tuple[Any, ...]) -> bool:
     return row is not None
 
 
-def has_active_hot_update(session_uuid: str) -> bool:
-    row = fetch_one(
-        f"""
-        SELECT uuid
-        FROM hot_updates
-        WHERE debugSessionUuid = ? AND updateStatus IN ({ACTIVE_HOT_UPDATE_SQL})
-        LIMIT 1
-        """,
-        (session_uuid,),
-    )
-    return row is not None
+def resolve_version_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if payload["sourceType"] == "local":
+        local_image_name = (payload.get("localImageName") or payload.get("fullImageUri") or "").strip()
+        ensure(bool(local_image_name), 400, "localImageName is required for local images")
+        if not payload.get("fullImageUri"):
+            payload["fullImageUri"] = local_image_name
+        payload["localImageName"] = local_image_name
+        payload["imagePullPolicy"] = payload.get("imagePullPolicy") or "Never"
+        payload["registryUrl"] = payload.get("registryUrl") or ""
+        payload["repositoryName"] = payload.get("repositoryName") or ""
+    else:
+        ensure(bool(payload.get("fullImageUri")), 400, "fullImageUri is required for registry images")
+        payload["localImageName"] = payload.get("localImageName") or ""
+    return payload
 
 
-def has_container_reference(column: str, uuid: str) -> bool:
-    row = fetch_one(f"SELECT uuid FROM containers WHERE {column} = ? LIMIT 1", (uuid,))
-    return row is not None
-
-
-def has_debug_session_reference(version_uuid: str) -> bool:
-    row = fetch_one(
-        """
-        SELECT uuid
-        FROM debug_sessions
-        WHERE baseVersionUuid = ? OR currentVersionUuid = ?
-        LIMIT 1
-        """,
-        (version_uuid, version_uuid),
-    )
-    return row is not None
-
-
-def ensure_image_matches_version(image: dict[str, Any], version_uuid: str) -> None:
-    ensure(
-        image["algorithmVersionUuid"] == version_uuid,
-        400,
-        "image does not belong to current version",
-    )
-
-
-def ensure_image_available(image: dict[str, Any]) -> None:
-    ensure(image["isAvailable"], 400, "image is offline")
+def version_image_ref(version: dict[str, Any]) -> str:
+    image_ref = (version.get("fullImageUri") or version.get("localImageName") or "").strip()
+    ensure(bool(image_ref), 400, "version image is not configured")
+    return image_ref
 
 
 @app.post("/api/v1/algorithms")
@@ -406,7 +389,7 @@ def create_algorithm(body: CreateAlgorithmRequest):
         return fail(400, "algorithmCode already exists")
 
     algorithm_uuid = gen_uuid("alg")
-    created_at = now_iso()
+    created_at = now_db()
     execute(
         """
         INSERT INTO algorithms (
@@ -429,19 +412,7 @@ def create_algorithm(body: CreateAlgorithmRequest):
         ),
     )
 
-    return ok(
-        {
-            "uuid": algorithm_uuid,
-            "algorithmCode": body.algorithmCode,
-            "algorithmName": body.algorithmName,
-            "algorithmType": body.algorithmType,
-            "framework": body.framework or "",
-            "runtimeType": body.runtimeType or "",
-            "languageType": body.languageType or "",
-            "status": "ENABLED",
-            "createdAt": created_at,
-        }
-    )
+    return ok(algorithm_detail(require_algorithm(algorithm_uuid)))
 
 
 @app.get("/api/v1/algorithms")
@@ -501,7 +472,7 @@ def update_algorithm(uuid: str, body: UpdateAlgorithmRequest):
         fields.append(f"{key} = ?")
         params.append(value)
     fields.append("updatedAt = ?")
-    params.append(now_iso())
+    params.append(now_db())
     params.append(uuid)
 
     execute(
@@ -519,8 +490,8 @@ def delete_algorithm(uuid: str):
         """
         SELECT d.uuid
         FROM deployments d
-        JOIN versions v ON v.uuid = d.algorithmVersionUuid
-        WHERE v.algorithmUuid = ? AND d.status IN ({})
+        JOIN versions v ON v.uuid = d.versionUuid
+        WHERE v.algorithmUuid = ? AND d.is_deleted = 0 AND d.status IN ({})
         LIMIT 1
         """.format(ACTIVE_DEPLOYMENT_SQL),
         (uuid,),
@@ -533,30 +504,43 @@ def delete_algorithm(uuid: str):
 @app.post("/api/v1/algorithms/{uuid}/versions")
 def create_version(uuid: str, body: CreateVersionRequest):
     require_algorithm(uuid)
+    payload = resolve_version_payload(body.model_dump())
 
     existing = fetch_one(
         "SELECT uuid FROM versions WHERE algorithmUuid = ? AND version = ?",
-        (uuid, body.version),
+        (uuid, payload["version"]),
     )
     ensure(existing is None, 400, "version already exists under current algorithm")
 
     version_uuid = gen_uuid("ver")
-    created_at = now_iso()
+    created_at = now_db()
     execute(
         """
         INSERT INTO versions (
             uuid, algorithmUuid, version, versionName, entrypoint,
-            configPath, changelog, publishStatus, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            codePath, configPath, changelog, sourceType, localImageName,
+            imagePullPolicy, registryUrl, repositoryName, imageTag,
+            imageDigest, fullImageUri, imageSize, publishStatus, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             version_uuid,
             uuid,
-            body.version,
-            body.versionName or body.version,
-            body.entrypoint,
-            body.configPath,
-            body.changelog,
+            payload["version"],
+            payload["versionName"] or payload["version"],
+            payload["entrypoint"],
+            payload["codePath"],
+            payload["configPath"],
+            payload["changelog"],
+            payload["sourceType"],
+            payload["localImageName"],
+            payload["imagePullPolicy"],
+            payload["registryUrl"],
+            payload["repositoryName"],
+            payload["imageTag"],
+            payload["imageDigest"],
+            payload["fullImageUri"],
+            payload["imageSize"],
             "DRAFT",
             created_at,
             created_at,
@@ -564,18 +548,7 @@ def create_version(uuid: str, body: CreateVersionRequest):
     )
     touch_algorithm(uuid, created_at)
 
-    return ok(
-        {
-            "uuid": version_uuid,
-            "algorithmUuid": uuid,
-            "version": body.version,
-            "versionName": body.versionName or body.version,
-            "entrypoint": body.entrypoint,
-            "configPath": body.configPath,
-            "publishStatus": "DRAFT",
-            "createdAt": created_at,
-        }
-    )
+    return ok(version_detail(require_version(version_uuid)))
 
 
 @app.get("/api/v1/algorithms/{uuid}/versions")
@@ -599,6 +572,29 @@ def update_version(uuid: str, body: UpdateVersionRequest):
     item = require_version(uuid)
 
     payload = body.model_dump(exclude_none=True)
+    if "publishStatus" in payload:
+        ensure_publish_status_transition(item["publishStatus"], payload["publishStatus"])
+        if item["publishStatus"] == "PUBLISHED" and payload["publishStatus"] == "OFFLINE":
+            ensure(
+                not has_active_deployment("versionUuid = ?", (uuid,)),
+                400,
+                "cannot offline version with active deployments",
+            )
+    merged_payload = dict(item)
+    merged_payload.update(payload)
+    merged_payload = resolve_version_payload(merged_payload)
+    for key in (
+        "sourceType",
+        "localImageName",
+        "imagePullPolicy",
+        "registryUrl",
+        "repositoryName",
+        "imageTag",
+        "imageDigest",
+        "fullImageUri",
+        "imageSize",
+    ):
+        payload[key] = merged_payload[key]
     if "version" in payload:
         existing = fetch_one(
             """
@@ -619,7 +615,7 @@ def update_version(uuid: str, body: UpdateVersionRequest):
         fields.append(f"{key} = ?")
         params.append(value)
     fields.append("updatedAt = ?")
-    updated_at = now_iso()
+    updated_at = now_db()
     params.append(updated_at)
     params.append(uuid)
 
@@ -635,136 +631,25 @@ def update_version(uuid: str, body: UpdateVersionRequest):
 def delete_version(uuid: str):
     item = require_version(uuid)
     ensure(
-        not has_active_deployment("algorithmVersionUuid = ?", (uuid,)),
+        not has_active_deployment("versionUuid = ?", (uuid,)),
         400,
         "version has active deployments",
-    )
-    ensure(
-        not has_container_reference("algorithmVersionUuid", uuid),
-        400,
-        "version is referenced by container deployment",
-    )
-    ensure(
-        not has_debug_session_reference(uuid),
-        400,
-        "version is referenced by debug session",
     )
     execute("DELETE FROM versions WHERE uuid = ?", (uuid,))
     touch_algorithm(item["algorithmUuid"])
     return ok({"uuid": uuid})
 
 
-@app.post("/api/v1/versions/{uuid}/images")
-def create_image(uuid: str, body: CreateImageRequest):
-    require_version(uuid, "algorithm version not found")
-
-    image_uuid = gen_uuid("img")
-    created_at = now_iso()
-    execute(
-        """
-        INSERT INTO images (
-            uuid, algorithmVersionUuid, registryUrl, repositoryName, imageTag,
-            imageDigest, fullImageUri, imageSize, isAvailable, createdAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            image_uuid,
-            uuid,
-            body.registryUrl,
-            body.repositoryName,
-            body.imageTag,
-            body.imageDigest,
-            body.fullImageUri,
-            body.imageSize,
-            1,
-            created_at,
-        ),
-    )
-    touch_version(uuid, created_at)
-
-    return ok(
-        {
-            "uuid": image_uuid,
-            "algorithmVersionUuid": uuid,
-            "fullImageUri": body.fullImageUri,
-            "isAvailable": True,
-            "createdAt": created_at,
-        }
-    )
-
-
-@app.get("/api/v1/versions/{uuid}/images")
-def list_images(uuid: str):
-    require_version(uuid, "algorithm version not found")
-    rows = fetch_all(
-        "SELECT * FROM images WHERE algorithmVersionUuid = ? ORDER BY createdAt DESC",
-        (uuid,),
-    )
-    items = []
-    for row in rows:
-        item = parse_image(row)
-        items.append(
-            {
-                "uuid": item["uuid"],
-                "fullImageUri": item["fullImageUri"],
-                "imageTag": item["imageTag"],
-                "imageDigest": item["imageDigest"],
-                "imageSize": item["imageSize"],
-                "isAvailable": item["isAvailable"],
-                "createdAt": item["createdAt"],
-            }
-        )
-    return ok({"items": items, "total": len(items)})
-
-
-@app.get("/api/v1/images/{uuid}")
-def get_image(uuid: str):
-    return ok(image_detail(require_image(uuid)))
-
-
-def mark_image_offline(uuid: str) -> JSONResponse:
-    image = require_image(uuid)
-    ensure(
-        not has_active_deployment("imageUuid = ?", (uuid,)),
-        400,
-        "image has active deployments",
-    )
-    ensure(
-        not has_container_reference("imageUuid", uuid),
-        400,
-        "image is referenced by container deployment",
-    )
-
-    if image["isAvailable"]:
-        updated_at = now_iso()
-        execute("UPDATE images SET isAvailable = ? WHERE uuid = ?", (0, uuid))
-        touch_version(image["algorithmVersionUuid"], updated_at)
-
-    return ok(image_detail(require_image(uuid)))
-
-
-@app.delete("/api/v1/images/{uuid}")
-def delete_image(uuid: str):
-    return mark_image_offline(uuid)
-
-
-@app.post("/api/v1/images/{uuid}/offline")
-def offline_image(uuid: str):
-    return mark_image_offline(uuid)
-
-
 @app.post("/api/v1/deployments")
 def create_deployment(body: CreateDeploymentRequest):
-    version = require_version(body.algorithmVersionUuid)
-    image = require_image(body.imageUuid)
-    ensure_image_matches_version(image, body.algorithmVersionUuid)
-    ensure_image_available(image)
+    version = require_version(body.versionUuid)
+    ensure_version_can_be_deployed(version)
     algorithm = require_algorithm(version["algorithmUuid"])
     namespace = body.namespace
     deployment_name = generate_deployment_name(
         algorithm["algorithmCode"], version["version"], namespace
     )
-    created_at = now_iso()
+    created_at = now_db()
     replicas = max(body.replicas, 1)
     resources = {}
     if body.resources:
@@ -775,12 +660,12 @@ def create_deployment(body: CreateDeploymentRequest):
 
     item = {
         "uuid": gen_uuid("dep"),
-        "algorithmVersionUuid": body.algorithmVersionUuid,
-        "imageUuid": body.imageUuid,
+        "versionUuid": body.versionUuid,
         "namespace": namespace,
         "deploymentName": deployment_name,
         "serviceName": f"{deployment_name}-svc",
         "status": "RUNNING",
+        "image": version_image_ref(version),
         "port": body.port,
         "replicas": replicas,
         "readyReplicas": replicas,
@@ -788,21 +673,21 @@ def create_deployment(body: CreateDeploymentRequest):
         "errorMessage": "",
         "env": body.env,
         "resources": resources,
+        "is_deleted": 0,
         "deployedAt": created_at,
         "updatedAt": created_at,
     }
     execute(
         """
         INSERT INTO deployments (
-            uuid, algorithmVersionUuid, imageUuid, namespace, deploymentName,
-            serviceName, status, port, replicas, readyReplicas, accessEndpoint,
-            errorMessage, env, resources, deployedAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            uuid, versionUuid, namespace, deploymentName, serviceName,
+            status, port, replicas, readyReplicas, accessEndpoint,
+            errorMessage, env, resources, image, is_deleted, deployedAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             item["uuid"],
-            item["algorithmVersionUuid"],
-            item["imageUuid"],
+            item["versionUuid"],
             item["namespace"],
             item["deploymentName"],
             item["serviceName"],
@@ -814,6 +699,8 @@ def create_deployment(body: CreateDeploymentRequest):
             item["errorMessage"],
             json_dumps(item["env"]),
             json_dumps(item["resources"]),
+            item["image"],
+            item["is_deleted"],
             item["deployedAt"],
             item["updatedAt"],
         ),
@@ -824,17 +711,19 @@ def create_deployment(body: CreateDeploymentRequest):
 
 @app.get("/api/v1/deployments")
 def list_deployments(
-    algorithmVersionUuid: str | None = Query(default=None),
+    versionUuid: str | None = Query(default=None),
     namespace: str | None = Query(default=None),
     status: str | None = Query(default=None),
     pageNum: int = Query(default=1),
     pageSize: int = Query(default=10),
 ):
-    rows = fetch_all("SELECT * FROM deployments ORDER BY updatedAt DESC")
+    rows = fetch_all(
+        "SELECT * FROM deployments WHERE is_deleted = 0 ORDER BY updatedAt DESC"
+    )
     items: list[dict[str, Any]] = []
     for row in rows:
         item = parse_deployment(row)
-        if algorithmVersionUuid and item["algorithmVersionUuid"] != algorithmVersionUuid:
+        if versionUuid and item["versionUuid"] != versionUuid:
             continue
         if namespace and item["namespace"] != namespace:
             continue
@@ -847,39 +736,83 @@ def list_deployments(
 
 @app.get("/api/v1/deployments/{uuid}")
 def get_deployment(uuid: str):
-    return ok(deployment_detail(parse_deployment(require_record("deployments", uuid, "deployment not found"))))
+    return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
+
+
+@app.put("/api/v1/deployments/{uuid}")
+def update_deployment(uuid: str, body: UpdateDeploymentRequest):
+    row = parse_deployment(require_deployment(uuid))
+    payload = body.model_dump(exclude_none=True)
+    if not payload:
+        return ok(deployment_detail(row))
+
+    next_version_uuid = payload.get("versionUuid", row["versionUuid"])
+    next_version = require_version(next_version_uuid, "version not found")
+    ensure_version_can_be_deployed(next_version)
+    current_version = require_version(row["versionUuid"], "current version not found")
+    ensure(
+        next_version["algorithmUuid"] == current_version["algorithmUuid"],
+        400,
+        "target version does not belong to current algorithm",
+    )
+
+    next_port = payload.get("port", row["port"])
+    next_env = payload.get("env", row["env"])
+    next_resources = payload.get("resources", row["resources"])
+    if hasattr(next_resources, "model_dump"):
+        next_resources = next_resources.model_dump(exclude_none=True)
+
+    execute(
+        """
+        UPDATE deployments
+        SET versionUuid = ?, image = ?, port = ?, accessEndpoint = ?, env = ?, resources = ?, status = ?, updatedAt = ?
+        WHERE uuid = ?
+        """,
+        (
+            next_version_uuid,
+            version_image_ref(next_version),
+            next_port,
+            deployment_endpoint(row["deploymentName"], row["namespace"], next_port),
+            json_dumps(next_env),
+            json_dumps(next_resources),
+            "UPDATING",
+            now_db(),
+            uuid,
+        ),
+    )
+    return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
 
 
 @app.delete("/api/v1/deployments/{uuid}")
 def delete_deployment(uuid: str):
-    require_record("deployments", uuid, "deployment not found")
-    updated_at = now_iso()
+    require_deployment(uuid)
+    updated_at = now_db()
     execute(
         """
         UPDATE deployments
-        SET status = ?, readyReplicas = ?, updatedAt = ?
+        SET status = ?, readyReplicas = ?, is_deleted = ?, updatedAt = ?
         WHERE uuid = ?
         """,
-        ("DELETING", 0, updated_at, uuid),
+        ("DELETED", 0, 1, updated_at, uuid),
     )
-    return ok({"uuid": uuid, "status": "DELETING"})
+    return ok({"uuid": uuid, "status": "DELETED", "is_deleted": 1})
 
 
 @app.post("/api/v1/deployments/{uuid}/restart")
 def restart_deployment(uuid: str):
-    row = require_record("deployments", uuid, "deployment not found")
-    ensure(row["status"] != "DELETING", 400, "deployment is deleting")
+    row = require_deployment(uuid)
+    ensure(row["status"] != "DELETED", 400, "deployment is deleted")
 
     execute(
         "UPDATE deployments SET status = ?, updatedAt = ? WHERE uuid = ?",
-        ("UPDATING", now_iso(), uuid),
+        ("UPDATING", now_db(), uuid),
     )
     return ok({"uuid": uuid, "status": "UPDATING"})
 
 
 @app.post("/api/v1/deployments/{uuid}/scale")
 def scale_deployment(uuid: str, body: ScaleRequest):
-    row = require_record("deployments", uuid, "deployment not found")
+    row = require_deployment(uuid)
     ensure(body.replicas > 0, 400, "replicas must be greater than 0")
 
     execute(
@@ -888,7 +821,7 @@ def scale_deployment(uuid: str, body: ScaleRequest):
         SET status = ?, replicas = ?, readyReplicas = ?, updatedAt = ?
         WHERE uuid = ?
         """,
-        ("SCALING", body.replicas, body.replicas, now_iso(), uuid),
+        ("SCALING", body.replicas, body.replicas, now_db(), uuid),
     )
     return ok(
         {
@@ -901,353 +834,108 @@ def scale_deployment(uuid: str, body: ScaleRequest):
     )
 
 
-@app.post("/api/v1/debug-sessions")
-def create_debug_session(body: CreateDebugSessionRequest, background_tasks: BackgroundTasks):
-    require_algorithm(body.algorithmUuid)
-    base_version = require_version(body.baseVersionUuid, "base version not found")
-    ensure(
-        base_version["algorithmUuid"] == body.algorithmUuid,
-        400,
-        "base version does not belong to current algorithm",
-    )
+@app.post("/api/v1/algorithms/{uuid}/build-records")
+def create_build_record(uuid: str, body: CreateBuildRecordRequest):
+    require_algorithm(uuid)
+    if body.baseVersionUuid:
+        base_version = require_version(body.baseVersionUuid, "base version not found")
+        ensure(base_version["algorithmUuid"] == uuid, 400, "base version does not belong to current algorithm")
+    if body.outputVersionUuid:
+        output_version = require_version(body.outputVersionUuid, "output version not found")
+        ensure(output_version["algorithmUuid"] == uuid, 400, "output version does not belong to current algorithm")
 
-    created_at = now_iso()
-    session_uuid = gen_uuid("dbg")
-    runtime_path = str(runtime_path_for_session(session_uuid))
-    session = {
-        "uuid": session_uuid,
-        "algorithmUuid": body.algorithmUuid,
-        "baseVersionUuid": body.baseVersionUuid,
-        "currentVersionUuid": body.baseVersionUuid,
-        "sessionName": body.sessionName,
-        "namespace": body.namespace,
-        "podName": f"{slugify(body.sessionName)}-pod",
-        "debugStatus": "PENDING",
-        "runtimePath": runtime_path,
-        "processPid": None,
-        "lastError": "",
-        "createdAt": created_at,
-        "updatedAt": created_at,
-    }
+    started_at = now_db()
+    finished_at = started_at if body.buildStatus in {"SUCCESS", "FAILED"} else None
+    record_uuid = gen_uuid("bld")
     execute(
         """
-        INSERT INTO debug_sessions (
-            uuid, algorithmUuid, baseVersionUuid, currentVersionUuid,
-            sessionName, namespace, podName, debugStatus, runtimePath,
-            processPid, lastError, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO build_records (
+            uuid, algorithmUuid, baseVersionUuid, outputVersionUuid,
+            buildStatus, operator, buildSource, sourceRevision, configRevision,
+            imageTag, imageDigest, fullImageUri, startedAt, finishedAt,
+            buildLogPath, errorMessage, resultSummary
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            session["uuid"],
-            session["algorithmUuid"],
-            session["baseVersionUuid"],
-            session["currentVersionUuid"],
-            session["sessionName"],
-            session["namespace"],
-            session["podName"],
-            session["debugStatus"],
-            session["runtimePath"],
-            session["processPid"],
-            session["lastError"],
-            session["createdAt"],
-            session["updatedAt"],
+            record_uuid,
+            uuid,
+            body.baseVersionUuid,
+            body.outputVersionUuid,
+            body.buildStatus,
+            body.operator or "",
+            body.buildSource,
+            body.sourceRevision,
+            body.configRevision,
+            body.imageTag,
+            body.imageDigest,
+            body.fullImageUri,
+            started_at,
+            finished_at,
+            body.buildLogPath or "",
+            body.errorMessage or "",
+            body.resultSummary or "",
         ),
     )
-    sync_session_state_file(session_uuid)
-    background_tasks.add_task(provision_debug_session, session_uuid)
-    return ok(debug_session_detail(session))
+    return ok(build_record_detail(require_build_record(record_uuid)))
 
 
-@app.get("/api/v1/debug-sessions")
-def list_debug_sessions(
-    namespace: str | None = Query(default=None),
+@app.get("/api/v1/algorithms/{uuid}/build-records")
+def list_build_records(
+    uuid: str,
+    buildStatus: str | None = Query(default=None),
     pageNum: int = Query(default=1),
     pageSize: int = Query(default=10),
 ):
-    rows = fetch_all("SELECT * FROM debug_sessions ORDER BY createdAt DESC")
-    items: list[dict[str, Any]] = []
-    for item in rows:
-        if namespace and item["namespace"] != namespace:
-            continue
-        items.append(debug_session_summary(item))
-    return ok(paginate(items, pageNum, pageSize))
-
-
-@app.get("/api/v1/debug-sessions/{uuid}")
-def get_debug_session(uuid: str):
-    return ok(debug_session_detail(require_debug_session(uuid)))
-
-
-@app.post("/api/v1/debug-sessions/{uuid}/close")
-def close_debug_session(uuid: str):
-    item = require_debug_session(uuid)
-    ensure(not has_active_hot_update(uuid), 400, "debug session has active hot update")
-
-    stop_debug_process(item.get("processPid"))
-    update_debug_session(uuid, debugStatus="SUCCESS", processPid=None, lastError="")
-    sync_session_state_file(uuid)
-    return ok(debug_session_detail(require_debug_session(uuid)))
-
-
-@app.delete("/api/v1/debug-sessions/{uuid}")
-def delete_debug_session(uuid: str):
-    item = require_debug_session(uuid)
-    stop_debug_process(item.get("processPid"))
-    execute("DELETE FROM debug_sessions WHERE uuid = ?", (uuid,))
-    delete_session_runtime(uuid)
-    return ok({"uuid": uuid})
-
-
-@app.post("/api/v1/debug-sessions/{uuid}/hot-update")
-def trigger_hot_update(
-    uuid: str,
-    body: HotUpdateRequest,
-    background_tasks: BackgroundTasks,
-):
-    session = require_debug_session(uuid)
-    ensure(
-        session["debugStatus"] in MUTABLE_DEBUG_SESSION_STATUSES,
-        400,
-        "debug session is not ready for hot update",
-    )
-    target_version = require_version(body.toVersionUuid, "target version not found")
-    ensure(
-        target_version["algorithmUuid"] == session["algorithmUuid"],
-        400,
-        "target version does not belong to current algorithm",
-    )
-    ensure(
-        body.toVersionUuid != session["currentVersionUuid"],
-        400,
-        "target version is same as current version",
-    )
-    ensure(
-        not has_active_hot_update(uuid),
-        400,
-        "debug session already has an active hot update",
-    )
-
-    started_at = now_iso()
-    hot_item = {
-        "uuid": gen_uuid("hot"),
-        "debugSessionUuid": uuid,
-        "fromVersionUuid": session["currentVersionUuid"],
-        "toVersionUuid": body.toVersionUuid,
-        "updateType": body.updateType,
-        "updateStatus": "PENDING",
-        "operator": body.operator,
-        "startedAt": started_at,
-        "finishedAt": "",
-        "errorMessage": "",
-        "resultSummary": "hot update queued",
-        "actionLogPath": "",
-    }
-    update_debug_session(uuid, debugStatus="PENDING", lastError="")
-    sync_session_state_file(uuid)
-    execute(
-        """
-        INSERT INTO hot_updates (
-            uuid, debugSessionUuid, fromVersionUuid, toVersionUuid,
-            updateType, updateStatus, operator, startedAt, finishedAt,
-            errorMessage, resultSummary, actionLogPath
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            hot_item["uuid"],
-            hot_item["debugSessionUuid"],
-            hot_item["fromVersionUuid"],
-            hot_item["toVersionUuid"],
-            hot_item["updateType"],
-            hot_item["updateStatus"],
-            hot_item["operator"],
-            hot_item["startedAt"],
-            hot_item["finishedAt"],
-            hot_item["errorMessage"],
-            hot_item["resultSummary"],
-            hot_item["actionLogPath"],
-        ),
-    )
-    background_tasks.add_task(run_hot_update_job, hot_item["uuid"])
-    return ok(hot_update_detail(hot_item))
-
-
-@app.get("/api/v1/debug-sessions/{uuid}/hot-updates")
-def list_hot_updates(
-    uuid: str,
-    pageNum: int = Query(default=1),
-    pageSize: int = Query(default=10),
-):
-    require_debug_session(uuid)
-    items = fetch_all(
-        """
-        SELECT uuid, fromVersionUuid, toVersionUuid, updateType,
-               updateStatus, operator, startedAt, finishedAt,
-               errorMessage, resultSummary, actionLogPath
-        FROM hot_updates
-        WHERE debugSessionUuid = ?
-        ORDER BY startedAt DESC
-        """,
+    require_algorithm(uuid)
+    rows = fetch_all(
+        "SELECT * FROM build_records WHERE algorithmUuid = ? ORDER BY startedAt DESC",
         (uuid,),
     )
-    return ok(paginate([hot_update_detail(item) for item in items], pageNum, pageSize))
-
-
-@app.post("/api/v1/containers/start")
-def start_container(body: CreateContainerRequest):
-    version = require_version(body.algorithmVersionUuid)
-    image = require_image(body.imageUuid)
-    ensure_image_matches_version(image, body.algorithmVersionUuid)
-    ensure_image_available(image)
-
-    namespace = body.namespace
-    container_uuid = gen_uuid("ctr")
-    container_version = body.version or version["version"]
-    container_image = body.image or image["fullImageUri"]
-    deployment_name = generate_container_name(body.name, container_version, namespace)
-    service_name = f"{deployment_name}-svc"
-    created_at = now_iso()
-
-    execute(
-        """
-        INSERT INTO containers (
-            uuid, algorithmVersionUuid, imageUuid, name, version, image,
-            namespace, port, replicas, readyReplicas, env, cpu, memory,
-            deploymentName, serviceName, status, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            container_uuid,
-            body.algorithmVersionUuid,
-            body.imageUuid,
-            body.name,
-            container_version,
-            container_image,
-            namespace,
-            body.port,
-            body.replicas,
-            body.replicas,
-            json_dumps(body.env),
-            body.cpu,
-            body.memory,
-            deployment_name,
-            service_name,
-            "Running",
-            created_at,
-            created_at,
-        ),
-    )
-
-    return ok(
-        {
-            "uuid": container_uuid,
-            "deploymentName": deployment_name,
-            "serviceName": service_name,
-        }
-    )
-
-
-@app.get("/api/v1/containers")
-def list_containers(
-    namespace: str | None = Query(default="default"),
-    pageNum: int = Query(default=1),
-    pageSize: int = Query(default=10),
-):
-    target_namespace = namespace or "default"
-    rows = fetch_all(
-        "SELECT * FROM containers WHERE namespace = ? ORDER BY createdAt DESC",
-        (target_namespace,),
-    )
-    items = []
-    for row in rows:
-        item = parse_container(row)
-        items.append(
-            {
-                "uuid": item["uuid"],
-                "name": item["name"],
-                "namespace": item["namespace"],
-                "deploymentName": item["deploymentName"],
-                "serviceName": item["serviceName"],
-                "status": item["status"],
-                "image": item["image"],
-                "replicas": item["replicas"],
-                "readyReplicas": item["readyReplicas"],
-                "algorithmVersionUuid": item["algorithmVersionUuid"],
-                "imageUuid": item["imageUuid"],
-                "updatedAt": item["updatedAt"],
-            }
-        )
+    items: list[dict[str, Any]] = []
+    for item in rows:
+        if buildStatus and item["buildStatus"] != buildStatus:
+            continue
+        items.append(build_record_summary(item))
     return ok(paginate(items, pageNum, pageSize))
 
 
-@app.delete("/api/v1/containers/{name}")
-def delete_container(name: str, namespace: str | None = Query(default="default")):
-    target_namespace = namespace or "default"
-    row = fetch_one(
-        "SELECT uuid, deploymentName FROM containers WHERE namespace = ? AND deploymentName = ?",
-        (target_namespace, name),
-    )
-    if not row:
-        return fail(404, "container not found")
+@app.get("/api/v1/build-records/{uuid}")
+def get_build_record(uuid: str):
+    return ok(build_record_detail(require_build_record(uuid)))
 
+
+@app.put("/api/v1/build-records/{uuid}")
+def update_build_record(uuid: str, body: UpdateBuildRecordRequest):
+    item = require_build_record(uuid)
+    payload = body.model_dump(exclude_none=True)
+    if "outputVersionUuid" in payload:
+        output_version = require_version(payload["outputVersionUuid"], "output version not found")
+        ensure(output_version["algorithmUuid"] == item["algorithmUuid"], 400, "output version does not belong to current algorithm")
+    if not payload:
+        return ok(build_record_detail(item))
+    if payload.get("buildStatus") in {"SUCCESS", "FAILED"} and "finishedAt" not in payload:
+        payload["finishedAt"] = now_db()
+    elif "finishedAt" in payload:
+        payload["finishedAt"] = to_db_datetime(payload["finishedAt"])
+
+    fields = []
+    params: list[Any] = []
+    for key, value in payload.items():
+        fields.append(f"{key} = ?")
+        params.append(value)
+    params.append(uuid)
     execute(
-        "DELETE FROM containers WHERE namespace = ? AND deploymentName = ?",
-        (target_namespace, name),
+        f"UPDATE build_records SET {', '.join(fields)} WHERE uuid = ?",
+        tuple(params),
     )
-    return ok({"deploymentName": row["deploymentName"], "namespace": target_namespace})
+    return ok(build_record_detail(require_build_record(uuid)))
 
 
-@app.post("/api/v1/containers/{name}/restart")
-def restart_container(name: str, namespace: str | None = Query(default="default")):
-    target_namespace = namespace or "default"
-    row = fetch_one(
-        "SELECT deploymentName FROM containers WHERE namespace = ? AND deploymentName = ?",
-        (target_namespace, name),
-    )
-    if not row:
-        return fail(404, "container not found")
-
-    execute(
-        """
-        UPDATE containers
-        SET status = ?, updatedAt = ?
-        WHERE namespace = ? AND deploymentName = ?
-        """,
-        ("Running", now_iso(), target_namespace, name),
-    )
-    return ok({"deploymentName": row["deploymentName"], "namespace": target_namespace})
-
-
-@app.post("/api/v1/containers/{name}/scale")
-def scale_container(
-    name: str,
-    body: ScaleRequest,
-    namespace: str | None = Query(default="default"),
-):
-    target_namespace = namespace or "default"
-    row = fetch_one(
-        "SELECT name FROM containers WHERE namespace = ? AND deploymentName = ?",
-        (target_namespace, name),
-    )
-    if not row:
-        return fail(404, "container not found")
-    if body.replicas <= 0:
-        return fail(400, "replicas must be greater than 0")
-
-    execute(
-        """
-        UPDATE containers
-        SET replicas = ?, readyReplicas = ?, updatedAt = ?
-        WHERE namespace = ? AND deploymentName = ?
-        """,
-        (body.replicas, body.replicas, now_iso(), target_namespace, name),
-    )
-    return ok(
-        {
-            "name": row["name"],
-            "namespace": target_namespace,
-            "replicas": body.replicas,
-        }
-    )
+@app.delete("/api/v1/build-records/{uuid}")
+def delete_build_record(uuid: str):
+    require_build_record(uuid)
+    execute("DELETE FROM build_records WHERE uuid = ?", (uuid,))
+    return ok({"uuid": uuid})
 
 
 @app.get("/health")

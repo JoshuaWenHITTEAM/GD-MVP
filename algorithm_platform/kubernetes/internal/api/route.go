@@ -19,6 +19,9 @@ func NewRouter(handler *Handler) *gin.Engine {
 	apiV1.DELETE("/containers/:name", handler.DeleteContainer)
 	apiV1.POST("/containers/:name/restart", handler.RestartContainer)
 	apiV1.POST("/containers/:name/scale", handler.ScaleContainer)
-
+	apiV1.POST("/containers/:name/infer", handler.InferContainer)
+	apiV1.POST("/containers/:name/image", handler.UpdateContainerImage)
+	apiV1.POST("/containers/:name/version", handler.UpdateContainerVersion)
+	
 	return r
 }

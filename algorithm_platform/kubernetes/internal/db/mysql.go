@@ -5,8 +5,6 @@ import (
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-
-	"algo-container-manager/internal/model"
 )
 
 var DB *gorm.DB
@@ -33,8 +31,14 @@ func InitMySQL(cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("mysql connect err: %v", err)
 	}
-	if err := db.AutoMigrate(&model.DeployRecord{}); err != nil {
-		return fmt.Errorf("mysql migrate err: %v", err)
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get sql db err: %v", err)
+	}
+
+	if err := sqlDB.Ping(); err != nil {
+		return fmt.Errorf("mysql ping err: %v", err)
 	}
 
 	DB = db
