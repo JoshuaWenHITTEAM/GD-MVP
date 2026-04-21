@@ -21,12 +21,9 @@ app.add_middleware(
 """
 
 # 启动时初始化数据库
-# 存在BUG，暂时注释掉以调试p2
-"""
 @app.on_event("startup")
 async def startup_event():
     init_db()
-"""
 
 
 # 1. 自动计算路径
