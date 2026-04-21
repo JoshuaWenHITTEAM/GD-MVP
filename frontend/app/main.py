@@ -1,11 +1,25 @@
-# app/main.py
+import sys
+import os
+from pathlib import Path
+
+
+
+current_file = Path(__file__).resolve() 
+frontend_path = current_file.parent.parent 
+root_path = frontend_path.parent
+if str(frontend_path) not in sys.path:
+    sys.path.insert(0, str(frontend_path))
+if str(root_path) not in sys.path:
+    sys.path.insert(0, str(root_path))
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
+
+# 导入业务模块
 from app.web.views import router as web_router
 from app.api.endpoints import router as api_router
 from app.models.database import init_db
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="MVP Demo")
 
@@ -13,7 +27,7 @@ app = FastAPI(title="MVP Demo")
 """
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # MVP 阶段允许所有源
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,20 +39,15 @@ app.add_middleware(
 async def startup_event():
     init_db()
 
-
-# 1. 自动计算路径
-BASE_PATH = Path(__file__).resolve().parent.parent
-
-# 2. 配置静态文件
+# 配置静态文件路径
+BASE_PATH = frontend_path
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
-# 3. 包含路由
-# 页面路由（不加前缀，直接访问 /）
+# 注册路由
 app.include_router(web_router)
-
-# API 接口（统一加上 /api 前缀，方便管理）
 app.include_router(api_router, prefix="/api", tags=["数据接口"])
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True) # 默认端口8000
+    # app路径frontend.app.main:app
+    uvicorn.run("frontend.app.main:app", host="127.0.0.1", port=8000, reload=True)
