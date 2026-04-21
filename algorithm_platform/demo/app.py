@@ -1,5 +1,5 @@
 import re
-from typing import Any
+from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from fastapi import FastAPI, Query, Request
@@ -49,7 +49,7 @@ ensure_database()
 ACTIVE_DEPLOYMENT_STATUSES = ("PENDING", "RUNNING", "UPDATING", "SCALING")
 ACTIVE_DEPLOYMENT_SQL = ", ".join(f"'{status}'" for status in ACTIVE_DEPLOYMENT_STATUSES)
 VERSION_PUBLISH_STATUSES = ("DRAFT", "PUBLISHED", "OFFLINE")
-VERSION_PUBLISH_TRANSITIONS: dict[str, set[str]] = {
+VERSION_PUBLISH_TRANSITIONS: Dict[str, Set[str]] = {
     "DRAFT": {"DRAFT", "PUBLISHED"},
     "PUBLISHED": {"PUBLISHED", "OFFLINE"},
     "OFFLINE": {"OFFLINE", "PUBLISHED"},
@@ -126,7 +126,7 @@ def ensure_publish_status_transition(current_status: str, next_status: str) -> N
     )
 
 
-def ensure_version_can_be_deployed(version: dict[str, Any]) -> None:
+def ensure_version_can_be_deployed(version: Dict[str, Any]) -> None:
     ensure(
         version["publishStatus"] == "PUBLISHED",
         400,
@@ -134,7 +134,12 @@ def ensure_version_can_be_deployed(version: dict[str, Any]) -> None:
     )
 
 
-def paginate(items: list[dict[str, Any]], page_num: int, page_size: int) -> dict[str, Any]:
+def ensure_algorithm_paths_configured(algorithm: Dict[str, Any]) -> None:
+    ensure(bool((algorithm.get("codePath") or "").strip()), 400, "algorithm codePath is required")
+    ensure(bool((algorithm.get("configPath") or "").strip()), 400, "algorithm configPath is required")
+
+
+def paginate(items: List[Dict[str, Any]], page_num: int, page_size: int) -> Dict[str, Any]:
     safe_page_num = max(page_num, 1)
     safe_page_size = max(page_size, 1)
     start = (safe_page_num - 1) * safe_page_size
@@ -147,7 +152,7 @@ def paginate(items: list[dict[str, Any]], page_num: int, page_size: int) -> dict
     }
 
 
-def algorithm_summary(item: dict[str, Any]) -> dict[str, Any]:
+def algorithm_summary(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "uuid": item["uuid"],
         "algorithmCode": item["algorithmCode"],
@@ -155,12 +160,14 @@ def algorithm_summary(item: dict[str, Any]) -> dict[str, Any]:
         "algorithmType": item["algorithmType"],
         "framework": item["framework"],
         "runtimeType": item["runtimeType"],
+        "codePath": item["codePath"],
+        "configPath": item["configPath"],
         "status": item["status"],
         "updatedAt": item["updatedAt"],
     }
 
 
-def algorithm_detail(item: dict[str, Any]) -> dict[str, Any]:
+def algorithm_detail(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "uuid": item["uuid"],
         "algorithmCode": item["algorithmCode"],
@@ -169,6 +176,8 @@ def algorithm_detail(item: dict[str, Any]) -> dict[str, Any]:
         "framework": item["framework"],
         "runtimeType": item["runtimeType"],
         "languageType": item["languageType"],
+        "codePath": item["codePath"],
+        "configPath": item["configPath"],
         "description": item["description"],
         "status": item["status"],
         "createdAt": item["createdAt"],
@@ -176,12 +185,14 @@ def algorithm_detail(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def version_summary(item: dict[str, Any]) -> dict[str, Any]:
+def version_summary(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "uuid": item["uuid"],
         "version": item["version"],
         "versionName": item["versionName"],
         "entrypoint": item["entrypoint"],
+        "sourceRevision": item["sourceRevision"],
+        "configRevision": item["configRevision"],
         "sourceType": item["sourceType"],
         "fullImageUri": item["fullImageUri"],
         "publishStatus": item["publishStatus"],
@@ -189,15 +200,15 @@ def version_summary(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def version_detail(item: dict[str, Any]) -> dict[str, Any]:
+def version_detail(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "uuid": item["uuid"],
         "algorithmUuid": item["algorithmUuid"],
         "version": item["version"],
         "versionName": item["versionName"],
         "entrypoint": item["entrypoint"],
-        "codePath": item["codePath"],
-        "configPath": item["configPath"],
+        "sourceRevision": item["sourceRevision"],
+        "configRevision": item["configRevision"],
         "changelog": item["changelog"],
         "sourceType": item["sourceType"],
         "localImageName": item["localImageName"],
@@ -213,7 +224,7 @@ def version_detail(item: dict[str, Any]) -> dict[str, Any]:
         "updatedAt": item["updatedAt"],
     }
 
-def deployment_summary(item: dict[str, Any]) -> dict[str, Any]:
+def deployment_summary(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "uuid": item["uuid"],
         "versionUuid": item["versionUuid"],
@@ -231,7 +242,7 @@ def deployment_summary(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def deployment_detail(item: dict[str, Any]) -> dict[str, Any]:
+def deployment_detail(item: Dict[str, Any]) -> Dict[str, Any]:
     detail = deployment_summary(item)
     detail.update(
         {
@@ -242,7 +253,7 @@ def deployment_detail(item: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
-def build_record_summary(item: dict[str, Any]) -> dict[str, Any]:
+def build_record_summary(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "uuid": item["uuid"],
         "algorithmUuid": item["algorithmUuid"],
@@ -255,7 +266,7 @@ def build_record_summary(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_record_detail(item: dict[str, Any]) -> dict[str, Any]:
+def build_record_detail(item: Dict[str, Any]) -> Dict[str, Any]:
     detail = build_record_summary(item)
     detail.update(
         {
@@ -303,25 +314,25 @@ def generate_deployment_name(algorithm_code: str, version: str, namespace: str) 
     )
 
 
-def require_record(table: str, uuid: str, message: str) -> dict[str, Any]:
+def require_record(table: str, uuid: str, message: str) -> Dict[str, Any]:
     item = fetch_one(f"SELECT * FROM {table} WHERE uuid = ?", (uuid,))
     ensure(item is not None, 404, message)
     return item  # type: ignore[return-value]
 
 
-def require_algorithm(uuid: str) -> dict[str, Any]:
+def require_algorithm(uuid: str) -> Dict[str, Any]:
     return require_record("algorithms", uuid, "algorithm not found")
 
 
-def require_version(uuid: str, message: str = "version not found") -> dict[str, Any]:
+def require_version(uuid: str, message: str = "version not found") -> Dict[str, Any]:
     return require_record("versions", uuid, message)
 
 
-def require_build_record(uuid: str) -> dict[str, Any]:
+def require_build_record(uuid: str) -> Dict[str, Any]:
     return require_record("build_records", uuid, "build record not found")
 
 
-def require_deployment(uuid: str, message: str = "deployment not found") -> dict[str, Any]:
+def require_deployment(uuid: str, message: str = "deployment not found") -> Dict[str, Any]:
     item = fetch_one(
         "SELECT * FROM deployments WHERE uuid = ? AND is_deleted = 0",
         (uuid,),
@@ -330,21 +341,21 @@ def require_deployment(uuid: str, message: str = "deployment not found") -> dict
     return item  # type: ignore[return-value]
 
 
-def touch_algorithm(uuid: str, updated_at: Any | None = None) -> None:
+def touch_algorithm(uuid: str, updated_at: Optional[Any] = None) -> None:
     execute(
         "UPDATE algorithms SET updatedAt = ? WHERE uuid = ?",
         (updated_at or now_db(), uuid),
     )
 
 
-def touch_version(uuid: str, updated_at: Any | None = None) -> None:
+def touch_version(uuid: str, updated_at: Optional[Any] = None) -> None:
     execute(
         "UPDATE versions SET updatedAt = ? WHERE uuid = ?",
         (updated_at or now_db(), uuid),
     )
 
 
-def has_active_deployment(where_clause: str, params: tuple[Any, ...]) -> bool:
+def has_active_deployment(where_clause: str, params: Tuple[Any, ...]) -> bool:
     row = fetch_one(
         f"""
         SELECT uuid
@@ -357,7 +368,7 @@ def has_active_deployment(where_clause: str, params: tuple[Any, ...]) -> bool:
     return row is not None
 
 
-def resolve_version_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def resolve_version_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     if payload["sourceType"] == "local":
         local_image_name = (payload.get("localImageName") or payload.get("fullImageUri") or "").strip()
         ensure(bool(local_image_name), 400, "localImageName is required for local images")
@@ -373,7 +384,7 @@ def resolve_version_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def version_image_ref(version: dict[str, Any]) -> str:
+def version_image_ref(version: Dict[str, Any]) -> str:
     image_ref = (version.get("fullImageUri") or version.get("localImageName") or "").strip()
     ensure(bool(image_ref), 400, "version image is not configured")
     return image_ref
@@ -394,8 +405,9 @@ def create_algorithm(body: CreateAlgorithmRequest):
         """
         INSERT INTO algorithms (
             uuid, algorithmCode, algorithmName, algorithmType, framework,
-            runtimeType, languageType, description, status, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            runtimeType, languageType, codePath, configPath, description,
+            status, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             algorithm_uuid,
@@ -405,6 +417,8 @@ def create_algorithm(body: CreateAlgorithmRequest):
             body.framework or "",
             body.runtimeType or "",
             body.languageType or "",
+            body.codePath or "",
+            body.configPath or "",
             body.description or "",
             "ENABLED",
             created_at,
@@ -417,13 +431,13 @@ def create_algorithm(body: CreateAlgorithmRequest):
 
 @app.get("/api/v1/algorithms")
 def list_algorithms(
-    keyword: str | None = Query(default=None),
-    algorithmType: str | None = Query(default=None),
+    keyword: Optional[str] = Query(default=None),
+    algorithmType: Optional[str] = Query(default=None),
     pageNum: int = Query(default=1),
     pageSize: int = Query(default=10),
 ):
     rows = fetch_all("SELECT * FROM algorithms ORDER BY updatedAt DESC")
-    items: list[dict[str, Any]] = []
+    items: List[Dict[str, Any]] = []
     needle = keyword.lower() if keyword else None
 
     for item in rows:
@@ -467,7 +481,7 @@ def update_algorithm(uuid: str, body: UpdateAlgorithmRequest):
         return ok(algorithm_detail(item))
 
     fields = []
-    params: list[Any] = []
+    params: List[Any] = []
     for key, value in payload.items():
         fields.append(f"{key} = ?")
         params.append(value)
@@ -503,7 +517,8 @@ def delete_algorithm(uuid: str):
 
 @app.post("/api/v1/algorithms/{uuid}/versions")
 def create_version(uuid: str, body: CreateVersionRequest):
-    require_algorithm(uuid)
+    algorithm = require_algorithm(uuid)
+    ensure_algorithm_paths_configured(algorithm)
     payload = resolve_version_payload(body.model_dump())
 
     existing = fetch_one(
@@ -518,7 +533,7 @@ def create_version(uuid: str, body: CreateVersionRequest):
         """
         INSERT INTO versions (
             uuid, algorithmUuid, version, versionName, entrypoint,
-            codePath, configPath, changelog, sourceType, localImageName,
+            sourceRevision, configRevision, changelog, sourceType, localImageName,
             imagePullPolicy, registryUrl, repositoryName, imageTag,
             imageDigest, fullImageUri, imageSize, publishStatus, createdAt, updatedAt
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -529,8 +544,8 @@ def create_version(uuid: str, body: CreateVersionRequest):
             payload["version"],
             payload["versionName"] or payload["version"],
             payload["entrypoint"],
-            payload["codePath"],
-            payload["configPath"],
+            payload["sourceRevision"],
+            payload["configRevision"],
             payload["changelog"],
             payload["sourceType"],
             payload["localImageName"],
@@ -570,6 +585,8 @@ def get_version(uuid: str):
 @app.put("/api/v1/versions/{uuid}")
 def update_version(uuid: str, body: UpdateVersionRequest):
     item = require_version(uuid)
+    algorithm = require_algorithm(item["algorithmUuid"])
+    ensure_algorithm_paths_configured(algorithm)
 
     payload = body.model_dump(exclude_none=True)
     if "publishStatus" in payload:
@@ -610,7 +627,7 @@ def update_version(uuid: str, body: UpdateVersionRequest):
         return ok(version_detail(item))
 
     fields = []
-    params: list[Any] = []
+    params: List[Any] = []
     for key, value in payload.items():
         fields.append(f"{key} = ?")
         params.append(value)
@@ -707,20 +724,18 @@ def create_deployment(body: CreateDeploymentRequest):
     )
 
     return ok(item)
-
-
 @app.get("/api/v1/deployments")
 def list_deployments(
-    versionUuid: str | None = Query(default=None),
-    namespace: str | None = Query(default=None),
-    status: str | None = Query(default=None),
+    versionUuid: Optional[str] = Query(default=None),
+    namespace: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
     pageNum: int = Query(default=1),
     pageSize: int = Query(default=10),
 ):
     rows = fetch_all(
         "SELECT * FROM deployments WHERE is_deleted = 0 ORDER BY updatedAt DESC"
     )
-    items: list[dict[str, Any]] = []
+    items: List[Dict[str, Any]] = []
     for row in rows:
         item = parse_deployment(row)
         if versionUuid and item["versionUuid"] != versionUuid:
@@ -832,8 +847,6 @@ def scale_deployment(uuid: str, body: ScaleRequest):
             "replicas": body.replicas,
         }
     )
-
-
 @app.post("/api/v1/algorithms/{uuid}/build-records")
 def create_build_record(uuid: str, body: CreateBuildRecordRequest):
     require_algorithm(uuid)
@@ -882,7 +895,7 @@ def create_build_record(uuid: str, body: CreateBuildRecordRequest):
 @app.get("/api/v1/algorithms/{uuid}/build-records")
 def list_build_records(
     uuid: str,
-    buildStatus: str | None = Query(default=None),
+    buildStatus: Optional[str] = Query(default=None),
     pageNum: int = Query(default=1),
     pageSize: int = Query(default=10),
 ):
@@ -891,7 +904,7 @@ def list_build_records(
         "SELECT * FROM build_records WHERE algorithmUuid = ? ORDER BY startedAt DESC",
         (uuid,),
     )
-    items: list[dict[str, Any]] = []
+    items: List[Dict[str, Any]] = []
     for item in rows:
         if buildStatus and item["buildStatus"] != buildStatus:
             continue
@@ -919,7 +932,7 @@ def update_build_record(uuid: str, body: UpdateBuildRecordRequest):
         payload["finishedAt"] = to_db_datetime(payload["finishedAt"])
 
     fields = []
-    params: list[Any] = []
+    params: List[Any] = []
     for key, value in payload.items():
         fields.append(f"{key} = ?")
         params.append(value)

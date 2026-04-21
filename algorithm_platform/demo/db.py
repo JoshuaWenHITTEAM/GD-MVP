@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import pymysql
 
@@ -11,7 +11,7 @@ import pymysql
 TZ = timezone(timedelta(hours=8))
 BASE_DIR = Path(__file__).resolve().parent
 RUNTIME_ROOT = BASE_DIR / "runtime"
-SCHEMA_VERSION = "2026-04-15-mysql-datetime"
+SCHEMA_VERSION = "2026-04-21-algorithm-paths"
 
 DB_HOST = os.getenv("DEMO_DB_HOST", "127.0.0.1")
 DB_PORT = int(os.getenv("DEMO_DB_PORT", "3307"))
@@ -37,6 +37,8 @@ SCHEMA_SQL = [
         framework VARCHAR(64) NOT NULL,
         runtimeType VARCHAR(32) NOT NULL,
         languageType VARCHAR(32) NOT NULL,
+        codePath VARCHAR(255) NOT NULL,
+        configPath VARCHAR(255) NOT NULL,
         description TEXT NOT NULL,
         status VARCHAR(32) NOT NULL,
         createdAt DATETIME(6) NOT NULL,
@@ -50,8 +52,8 @@ SCHEMA_SQL = [
         version VARCHAR(64) NOT NULL,
         versionName VARCHAR(128) NOT NULL,
         entrypoint VARCHAR(255) NOT NULL,
-        codePath VARCHAR(255) NOT NULL,
-        configPath VARCHAR(255) NOT NULL,
+        sourceRevision VARCHAR(255) NULL,
+        configRevision VARCHAR(255) NULL,
         changelog TEXT NOT NULL,
         sourceType VARCHAR(32) NOT NULL,
         localImageName VARCHAR(255) NOT NULL,
@@ -157,7 +159,7 @@ def json_dumps(value: Any) -> str:
     return json.dumps(value or {}, ensure_ascii=False, separators=(",", ":"))
 
 
-def json_loads(value: str | None) -> dict[str, Any]:
+def json_loads(value: Optional[str]) -> Dict[str, Any]:
     if not value:
         return {}
     return json.loads(value)
@@ -167,7 +169,7 @@ def _normalize_query(query: str) -> str:
     return query.replace("?", "%s")
 
 
-def to_db_datetime(value: datetime | str | None) -> datetime | None:
+def to_db_datetime(value: Optional[Any]) -> Optional[datetime]:
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
@@ -185,12 +187,12 @@ def _to_api_value(value: Any) -> Any:
     return value
 
 
-def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
+def _normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {key: _to_api_value(value) for key, value in row.items()}
 
 
 def _connect(*, use_database: bool = True, autocommit: bool = False) -> pymysql.connections.Connection:
-    params: dict[str, Any] = {
+    params: Dict[str, Any] = {
         "host": DB_HOST,
         "port": DB_PORT,
         "user": DB_USER,
@@ -208,7 +210,7 @@ def get_conn() -> pymysql.connections.Connection:
     return _connect(use_database=True, autocommit=False)
 
 
-def fetch_one(query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
+def fetch_one(query: str, params: Tuple[Any, ...] = ()) -> Optional[Dict[str, Any]]:
     conn = get_conn()
     try:
         with conn.cursor() as cursor:
@@ -219,7 +221,7 @@ def fetch_one(query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None
         conn.close()
 
 
-def fetch_all(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+def fetch_all(query: str, params: Tuple[Any, ...] = ()) -> List[Dict[str, Any]]:
     conn = get_conn()
     try:
         with conn.cursor() as cursor:
@@ -230,7 +232,7 @@ def fetch_all(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         conn.close()
 
 
-def execute(query: str, params: tuple[Any, ...] = ()) -> None:
+def execute(query: str, params: Tuple[Any, ...] = ()) -> None:
     conn = get_conn()
     try:
         with conn.cursor() as cursor:
@@ -240,7 +242,7 @@ def execute(query: str, params: tuple[Any, ...] = ()) -> None:
         conn.close()
 
 
-def update_by_uuid(table: str, uuid: str, values: dict[str, Any]) -> None:
+def update_by_uuid(table: str, uuid: str, values: Dict[str, Any]) -> None:
     if not values:
         return
 
@@ -261,7 +263,7 @@ def ensure_database_exists() -> None:
         conn.close()
 
 
-def current_schema_version() -> str | None:
+def current_schema_version() -> Optional[str]:
     try:
         row = fetch_one("SELECT value FROM app_meta WHERE `key` = ?", ("schema_version",))
     except pymysql.MySQLError:
@@ -319,8 +321,9 @@ def seed_data() -> None:
                 """
                 INSERT INTO algorithms (
                     uuid, algorithmCode, algorithmName, algorithmType, framework,
-                    runtimeType, languageType, description, status, createdAt, updatedAt
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    runtimeType, languageType, codePath, configPath, description,
+                    status, createdAt, updatedAt
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     algorithm_uuid,
@@ -330,6 +333,8 @@ def seed_data() -> None:
                     "PyTorch",
                     "GPU",
                     "Python",
+                    "/workspace/yolo",
+                    "/configs/yolo/default",
                     "基于YOLO的目标检测算法",
                     "ENABLED",
                     created_at,
@@ -342,7 +347,7 @@ def seed_data() -> None:
                 """
                 INSERT INTO versions (
                     uuid, algorithmUuid, version, versionName, entrypoint,
-                    codePath, configPath, changelog, sourceType, localImageName,
+                    sourceRevision, configRevision, changelog, sourceType, localImageName,
                     imagePullPolicy, registryUrl, repositoryName, imageTag,
                     imageDigest, fullImageUri, imageSize, publishStatus,
                     is_deleted, createdAt, updatedAt
@@ -355,8 +360,8 @@ def seed_data() -> None:
                         "1.0.0",
                         "YOLO基础版",
                         "python main.py",
-                        "/workspace/yolo/1.0.0",
-                        "/configs/yolo.yaml",
+                        "git:main@abc1234",
+                        "config:v1",
                         "初始版本，支持基础目标检测",
                         "local",
                         "gd-docker-preprocess:v1",   # 建议本地镜像
@@ -378,8 +383,8 @@ def seed_data() -> None:
                         "1.0.1",
                         "YOLO调试版",
                         "python main.py",
-                        "/workspace/yolo/1.0.1",
-                        "/configs/yolo_debug.yaml",
+                        "git:main@bcd2345",
+                        "config:v2",
                         "新增调试参数和可视化输出",
                         "local",
                         "gd-docker-preprocess:v2",
@@ -412,7 +417,7 @@ def ensure_database() -> None:
     seed_data()
 
 
-def parse_deployment(row: dict[str, Any]) -> dict[str, Any]:
+def parse_deployment(row: Dict[str, Any]) -> Dict[str, Any]:
     item = dict(row)
     item["env"] = json_loads(item["env"])
     item["resources"] = json_loads(item["resources"])

@@ -6,10 +6,11 @@ import sys
 import time
 from pathlib import Path
 import shlex
+from typing import Dict, List, Optional
 
 
 running = True
-child_process: subprocess.Popen | None = None
+child_process = None  # type: Optional[subprocess.Popen]
 
 
 def stop_handler(signum, frame):
@@ -36,7 +37,7 @@ def terminate_child() -> None:
         return
 
 
-def load_metadata(runtime_dir: Path) -> dict:
+def load_metadata(runtime_dir: Path) -> Dict[str, object]:
     metadata_path = runtime_dir / "current" / "metadata.json"
     if not metadata_path.exists():
         return {}
@@ -54,7 +55,7 @@ def write_state(runtime_dir: Path, status: str, **extra: object) -> None:
     )
 
 
-def normalize_entrypoint(entrypoint: str) -> list[str]:
+def normalize_entrypoint(entrypoint: str) -> List[str]:
     command = shlex.split(entrypoint)
     if not command:
         raise RuntimeError("entrypoint is empty")
@@ -63,7 +64,7 @@ def normalize_entrypoint(entrypoint: str) -> list[str]:
     return command
 
 
-def start_child(runtime_dir: Path, metadata: dict) -> subprocess.Popen:
+def start_child(runtime_dir: Path, metadata: Dict[str, object]) -> subprocess.Popen:
     current_dir = runtime_dir / "current"
     code_dir = current_dir / "code"
     entrypoint = (metadata.get("entrypoint") or "").strip()

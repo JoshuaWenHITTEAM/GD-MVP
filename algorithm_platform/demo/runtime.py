@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 from db import BASE_DIR, fetch_one, now_iso, update_by_uuid
 
@@ -58,7 +58,7 @@ def sync_session_state_file(session_uuid: str) -> None:
     )
 
 
-def stop_debug_process(pid: int | None) -> None:
+def stop_debug_process(pid: Optional[int]) -> None:
     if not pid or not process_is_alive(pid):
         return
 
@@ -228,21 +228,29 @@ def run_hot_update_job(hot_update_uuid: str) -> None:
         sync_session_state_file(session_uuid)
 
 
-def require_debug_session(session_uuid: str) -> dict[str, Any] | None:
+def require_debug_session(session_uuid: str) -> Optional[Dict[str, Any]]:
     return fetch_one("SELECT * FROM debug_sessions WHERE uuid = ?", (session_uuid,))
 
 
-def require_version(version_uuid: str) -> dict[str, Any] | None:
+def require_version(version_uuid: str) -> Optional[Dict[str, Any]]:
     return fetch_one("SELECT * FROM versions WHERE uuid = ?", (version_uuid,))
 
 
-def ensure_version_snapshot(version: dict[str, Any]) -> Path:
+def require_algorithm(algorithm_uuid: str) -> Optional[Dict[str, Any]]:
+    return fetch_one("SELECT * FROM algorithms WHERE uuid = ?", (algorithm_uuid,))
+
+
+def ensure_version_snapshot(version: Dict[str, Any]) -> Path:
+    algorithm = require_algorithm(version["algorithmUuid"])
+    if not algorithm:
+        raise RuntimeError("algorithm not found while preparing version snapshot")
+
     snapshot_dir = VERSION_SNAPSHOT_ROOT / version["uuid"]
     if snapshot_dir.exists():
         shutil.rmtree(snapshot_dir)
     snapshot_dir.mkdir(parents=True, exist_ok=True)
-    code_path = Path(version.get("codePath") or "")
-    config_path = Path(version.get("configPath") or "")
+    code_path = Path(algorithm.get("codePath") or "")
+    config_path = Path(algorithm.get("configPath") or "")
     runtime_code_dir = snapshot_dir / "code"
     runtime_config_path = ""
 
@@ -250,7 +258,7 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
         if not code_path.is_dir():
             raise RuntimeError(f"codePath is not a directory: {code_path}")
         replace_directory(code_path, runtime_code_dir)
-    elif version.get("codePath"):
+    elif algorithm.get("codePath"):
         raise RuntimeError(f"codePath does not exist: {code_path}")
     else:
         runtime_code_dir.mkdir(parents=True, exist_ok=True)
@@ -282,7 +290,7 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
             target_file = config_dir / config_path.name
             shutil.copy2(config_path, target_file)
             runtime_config_path = str(target_file)
-    elif version.get("configPath"):
+    elif algorithm.get("configPath"):
         raise RuntimeError(f"configPath does not exist: {config_path}")
 
     write_json(
@@ -292,8 +300,10 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
             "version": version["version"],
             "versionName": version["versionName"],
             "entrypoint": version["entrypoint"],
-            "codePath": version.get("codePath", ""),
-            "configPath": version["configPath"],
+            "codePath": algorithm.get("codePath", ""),
+            "configPath": algorithm.get("configPath", ""),
+            "sourceRevision": version.get("sourceRevision", ""),
+            "configRevision": version.get("configRevision", ""),
             "runtimeCodePath": str(runtime_code_dir),
             "runtimeConfigPath": runtime_config_path,
             "publishStatus": version["publishStatus"],
@@ -303,7 +313,7 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
     return snapshot_dir
 
 
-def prepare_runtime(runtime_dir: Path, version: dict[str, Any]) -> None:
+def prepare_runtime(runtime_dir: Path, version: Dict[str, Any]) -> None:
     runtime_dir.mkdir(parents=True, exist_ok=True)
     (runtime_dir / "logs").mkdir(parents=True, exist_ok=True)
     replace_directory(ensure_version_snapshot(version), runtime_dir / "current")
@@ -317,7 +327,7 @@ def restore_runtime(runtime_dir: Path) -> bool:
     return True
 
 
-def restart_debug_process(runtime_dir: Path, current_pid: int | None) -> int:
+def restart_debug_process(runtime_dir: Path, current_pid: Optional[int]) -> int:
     stop_debug_process(current_pid)
     return start_debug_process(runtime_dir)
 
@@ -390,7 +400,7 @@ def write_hot_update_log(
     return str(log_path)
 
 
-def write_json(path: Path, payload: dict[str, Any]) -> None:
+def write_json(path: Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
