@@ -1,4 +1,3 @@
-import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import uuid4
 
@@ -12,7 +11,6 @@ from db import (
     execute,
     fetch_all,
     fetch_one,
-    json_dumps,
     now_db,
     parse_deployment,
     to_db_datetime,
@@ -20,12 +18,9 @@ from db import (
 from models import (
     CreateAlgorithmRequest,
     CreateBuildRecordRequest,
-    CreateDeploymentRequest,
     CreateVersionRequest,
-    ScaleRequest,
     UpdateAlgorithmRequest,
     UpdateBuildRecordRequest,
-    UpdateDeploymentRequest,
     UpdateVersionRequest,
 )
 
@@ -657,73 +652,6 @@ def delete_version(uuid: str):
     return ok({"uuid": uuid})
 
 
-@app.post("/api/v1/deployments")
-def create_deployment(body: CreateDeploymentRequest):
-    version = require_version(body.versionUuid)
-    ensure_version_can_be_deployed(version)
-    algorithm = require_algorithm(version["algorithmUuid"])
-    namespace = body.namespace
-    deployment_name = generate_deployment_name(
-        algorithm["algorithmCode"], version["version"], namespace
-    )
-    created_at = now_db()
-    replicas = max(body.replicas, 1)
-    resources = {}
-    if body.resources:
-        if body.resources.cpu is not None:
-            resources["cpu"] = body.resources.cpu
-        if body.resources.memory is not None:
-            resources["memory"] = body.resources.memory
-
-    item = {
-        "uuid": gen_uuid("dep"),
-        "versionUuid": body.versionUuid,
-        "namespace": namespace,
-        "deploymentName": deployment_name,
-        "serviceName": f"{deployment_name}-svc",
-        "status": "RUNNING",
-        "image": version_image_ref(version),
-        "port": body.port,
-        "replicas": replicas,
-        "readyReplicas": replicas,
-        "accessEndpoint": deployment_endpoint(deployment_name, namespace, body.port),
-        "errorMessage": "",
-        "env": body.env,
-        "resources": resources,
-        "is_deleted": 0,
-        "deployedAt": created_at,
-        "updatedAt": created_at,
-    }
-    execute(
-        """
-        INSERT INTO deployments (
-            uuid, versionUuid, namespace, deploymentName, serviceName,
-            status, port, replicas, readyReplicas, accessEndpoint,
-            errorMessage, env, resources, image, is_deleted, deployedAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            item["uuid"],
-            item["versionUuid"],
-            item["namespace"],
-            item["deploymentName"],
-            item["serviceName"],
-            item["status"],
-            item["port"],
-            item["replicas"],
-            item["readyReplicas"],
-            item["accessEndpoint"],
-            item["errorMessage"],
-            json_dumps(item["env"]),
-            json_dumps(item["resources"]),
-            item["image"],
-            item["is_deleted"],
-            item["deployedAt"],
-            item["updatedAt"],
-        ),
-    )
-
-    return ok(item)
 @app.get("/api/v1/deployments")
 def list_deployments(
     versionUuid: Optional[str] = Query(default=None),
@@ -752,101 +680,6 @@ def list_deployments(
 @app.get("/api/v1/deployments/{uuid}")
 def get_deployment(uuid: str):
     return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
-
-
-@app.put("/api/v1/deployments/{uuid}")
-def update_deployment(uuid: str, body: UpdateDeploymentRequest):
-    row = parse_deployment(require_deployment(uuid))
-    payload = body.model_dump(exclude_none=True)
-    if not payload:
-        return ok(deployment_detail(row))
-
-    next_version_uuid = payload.get("versionUuid", row["versionUuid"])
-    next_version = require_version(next_version_uuid, "version not found")
-    ensure_version_can_be_deployed(next_version)
-    current_version = require_version(row["versionUuid"], "current version not found")
-    ensure(
-        next_version["algorithmUuid"] == current_version["algorithmUuid"],
-        400,
-        "target version does not belong to current algorithm",
-    )
-
-    next_port = payload.get("port", row["port"])
-    next_env = payload.get("env", row["env"])
-    next_resources = payload.get("resources", row["resources"])
-    if hasattr(next_resources, "model_dump"):
-        next_resources = next_resources.model_dump(exclude_none=True)
-
-    execute(
-        """
-        UPDATE deployments
-        SET versionUuid = ?, image = ?, port = ?, accessEndpoint = ?, env = ?, resources = ?, status = ?, updatedAt = ?
-        WHERE uuid = ?
-        """,
-        (
-            next_version_uuid,
-            version_image_ref(next_version),
-            next_port,
-            deployment_endpoint(row["deploymentName"], row["namespace"], next_port),
-            json_dumps(next_env),
-            json_dumps(next_resources),
-            "UPDATING",
-            now_db(),
-            uuid,
-        ),
-    )
-    return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
-
-
-@app.delete("/api/v1/deployments/{uuid}")
-def delete_deployment(uuid: str):
-    require_deployment(uuid)
-    updated_at = now_db()
-    execute(
-        """
-        UPDATE deployments
-        SET status = ?, readyReplicas = ?, is_deleted = ?, updatedAt = ?
-        WHERE uuid = ?
-        """,
-        ("DELETED", 0, 1, updated_at, uuid),
-    )
-    return ok({"uuid": uuid, "status": "DELETED", "is_deleted": 1})
-
-
-@app.post("/api/v1/deployments/{uuid}/restart")
-def restart_deployment(uuid: str):
-    row = require_deployment(uuid)
-    ensure(row["status"] != "DELETED", 400, "deployment is deleted")
-
-    execute(
-        "UPDATE deployments SET status = ?, updatedAt = ? WHERE uuid = ?",
-        ("UPDATING", now_db(), uuid),
-    )
-    return ok({"uuid": uuid, "status": "UPDATING"})
-
-
-@app.post("/api/v1/deployments/{uuid}/scale")
-def scale_deployment(uuid: str, body: ScaleRequest):
-    row = require_deployment(uuid)
-    ensure(body.replicas > 0, 400, "replicas must be greater than 0")
-
-    execute(
-        """
-        UPDATE deployments
-        SET status = ?, replicas = ?, readyReplicas = ?, updatedAt = ?
-        WHERE uuid = ?
-        """,
-        ("SCALING", body.replicas, body.replicas, now_db(), uuid),
-    )
-    return ok(
-        {
-            "uuid": uuid,
-            "namespace": row["namespace"],
-            "deploymentName": row["deploymentName"],
-            "status": "SCALING",
-            "replicas": body.replicas,
-        }
-    )
 @app.post("/api/v1/algorithms/{uuid}/build-records")
 def create_build_record(uuid: str, body: CreateBuildRecordRequest):
     require_algorithm(uuid)
