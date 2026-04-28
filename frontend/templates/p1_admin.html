@@ -839,226 +839,123 @@
                         </div>
                     </section>
                     <!-- 算法注册 (Register) -->
-                    <section class="page-section max-w-5xl mx-auto hidden" id="page-register">
-                        <div class="space-y-6">
-                            <!-- 第一步：基础信息 -->
-                            <div class="glass-panel rounded-2xl p-8 neon-border">
-                                <div class="flex items-center gap-4 mb-8">
-                                    <span
-                                        class="w-10 h-10 rounded-full bg-sky-500 flex items-center justify-center font-bold">1</span>
-                                    <div>
-                                        <h3 class="text-xl font-bold">基础信息录入</h3>
-                                        <p class="text-xs text-slate-500 mt-1">请填写算法元数据，标 * 为必填项</p>
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-x-12 gap-y-6">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">算法名称 *</label>
-                                        <input id="algo-name"
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
-                                            placeholder="限制32字符以内" type="text" />
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">版本号 *</label>
-                                        <input id="algo-version"
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
-                                            placeholder="语义化版本，如 v1.0.0" type="text" />
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">算法类型 *</label>
-                                        <select id="algo-type"
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500">
-                                            <option>Deep Learning</option>
-                                            <option>Machine Learning</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">标签分类 (任务名)
-                                            *</label>
-                                        <input id="algo-tags"
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
-                                            placeholder="如：目标检测、自然语言处理" type="text" />
-                                    </div>
-                                    <div class="col-span-2">
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">算法描述</label>
-                                        <textarea id="algo-description"
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-sky-500"
-                                            placeholder="算法核心功能及适用场景描述" rows="3"></textarea>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">算法权限</label>
-                                        <div class="flex gap-4">
-                                            <label class="flex items-center gap-2 cursor-pointer"><input checked=""
-                                                    name="auth" type="radio" value="公开" />公开</label>
-                                            <label class="flex items-center gap-2 cursor-pointer"><input name="auth"
-                                                    type="radio" value="共享" />共享</label>
-                                            <label class="flex items-center gap-2 cursor-pointer"><input name="auth"
-                                                    type="radio" value="私有" />私有</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+<!-- 算法及版本注册 (Register & Version) -->
+<section class="page-section max-w-5xl mx-auto hidden" id="page-register">
+    
+    <!-- 顶部 Tab 切换器 -->
+    <div class="flex justify-center mb-8">
+        <div class="bg-slate-900 p-1 rounded-2xl flex gap-2 border border-slate-700 shadow-xl">
+            <button id="tab-btn-algo" onclick="switchTab('algo')" class="px-8 py-3 rounded-xl font-bold transition-all duration-300 bg-sky-500 text-white shadow-lg shadow-sky-500/30">
+                1. 注册新算法
+            </button>
+            <button id="tab-btn-version" onclick="switchTab('version')" class="px-8 py-3 rounded-xl font-bold transition-all duration-300 bg-transparent text-slate-400 hover:text-white hover:bg-slate-800">
+                2. 注册算法版本
+            </button>
+        </div>
+    </div>
 
-                            <!-- 提交按钮 -->
-                            <div class="mt-8 flex justify-end gap-4">
-                                <button onclick="resetForm()"
-                                    class="px-6 py-3 rounded-lg border border-slate-600 hover:bg-slate-800 transition">
-                                    重置
-                                </button>
-                                <button onclick="submitAlgorithm()"
-                                    class="px-8 py-3 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold transition flex items-center gap-2">
-                                    <span>确认注册算法</span>
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                                    </svg>
-                                </button>
-                            </div>
+    <!-- 面板 1：算法注册 -->
+    <div id="panel-algo" class="glass-panel rounded-2xl p-8 neon-border transition-all duration-500 block">
+        <div class="mb-8">
+            <h3 class="text-xl font-bold text-white">算法基础信息注册</h3>
+            <p class="text-xs text-slate-500 mt-1">独立注册算法元数据，成功后将生成唯一的算法 UUID。</p>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-x-12 gap-y-6">
+            <div>
+                <label class="block text-sm font-semibold text-slate-300 mb-2">算法名称 *</label>
+                <input id="algo-name" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-sky-500" placeholder="限制32字符以内" type="text" />
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-300 mb-2">算法类型 *</label>
+                <select id="algo-type" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-sky-500">
+                    <option value="预处理">预处理</option>
+                    <option value="检测">检测</option>
+                    <option value="跟踪">跟踪</option>
+                </select>
+            </div>
+            
+            <!-- 带有模拟选择文件功能的路径输入 -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-300 mb-2">代码路径 (codePath) *</label>
+                <div class="flex gap-2">
+                    <input id="algo-codepath" class="flex-1 bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-sky-500" placeholder="可手动输入或选择文件" type="text" />
+                    <button onclick="document.getElementById('file-code').click()" class="shrink-0 px-4 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 text-slate-300 transition">选择</button>
+                    <input type="file" id="file-code" accept=".py" class="hidden" onchange="handleFileSelect(this, 'algo-codepath', '/opt/algorithms/code/')" />
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold text-slate-300 mb-2">配置路径 (configPath) *</label>
+                <div class="flex gap-2">
+                    <input id="algo-configpath" class="flex-1 bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-sky-500" placeholder="可手动输入或选择文件" type="text" />
+                    <button onclick="document.getElementById('file-config').click()" class="shrink-0 px-4 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 text-slate-300 transition">选择</button>
+                    <input type="file" id="file-config" accept=".yaml,.yml" class="hidden" onchange="handleFileSelect(this, 'algo-configpath', '/opt/algorithms/config/')" />
+                </div>
+            </div>
+            
+            <div class="col-span-2 mt-4 flex justify-end gap-4">
+                <button onclick="resetAlgoForm()" class="px-6 py-3 rounded-lg border border-slate-600 text-white hover:bg-slate-800 transition">清空重置</button>
+                <button id="btn-submit-algo" onclick="submitAlgorithm()" class="px-8 py-3 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold transition flex items-center gap-2">
+                    确认注册算法
+                </button>
+            </div>
+        </div>
+    </div>
 
-                            <!-- 第二步：镜像与测试 -->
-                            <div class="glass-panel rounded-2xl p-8">
-                                <div class="flex items-center gap-4 mb-8">
-                                    <span
-                                        class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold">2</span>
-                                    <div>
-                                        <h3 class="text-xl font-bold">镜像导入与兼容性测试</h3>
-                                        <p class="text-xs text-slate-500 mt-1">校验容器镜像合法性并执行自动化压力测试</p>
-                                    </div>
-                                </div>
-                                <div class="space-y-6">
-                                     <!-- 文件上传 -->
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">镜像路径上传(Image Registry Path) *</label>
-                                        <div class="flex items-center gap-4">
-                                            <input type="file" id="algo-file" accept=".json,.py" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm">
-                                            <span id="file-status" class="text-xs text-slate-400"></span>
-                                        </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">版本号（可选，不填自动生成）</label>
-                                        <input type="text" id="version-number" placeholder="例如 v1.0.0" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3">
-                                    </div>
-                                    </div>
-                                    <!-- 校验规则 -->
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">校验规则</label>
-                                        <select id="validation-rule" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3">
-                                            <option value="json_schema">JSON Schema 校验（包含 model_name, version, input_shape）</option>
-                                            <option value="python_syntax">Python 语法校验</option>
-                                            <option value="none">仅检查非空</option>
-                                        </select>
-                                    </div>
-                                    <!-- 提交按钮 -->
-                                    <div class="flex justify-end gap-4 pt-4 border-t border-slate-800">
-                                        <button id="cancel-upload" class="px-8 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition-all text-sm">取消注册</button>
-                                        <button id="submit-upload" class="px-8 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 rounded-lg font-bold shadow-lg shadow-sky-900/40 hover:scale-105 transition-all">提交并生成UUID</button>
-                                    </div>
+    <!-- 面板 2：版本注册 -->
+    <div id="panel-version" class="glass-panel rounded-2xl p-8 border border-indigo-500/30 transition-all duration-500 hidden">
+        <div class="mb-8">
+            <h3 class="text-xl font-bold text-white">算法版本及镜像注册</h3>
+            <p class="text-xs text-slate-500 mt-1">为已存在的算法绑定新的版本信息与镜像。（需提供已注册算法的 UUID）</p>
+        </div>
 
-<!--                                    <div>-->
-<!--                                        <label class="block text-sm font-semibold text-slate-300 mb-2 font-mono">镜像路径-->
-<!--                                            (Image-->
-<!--                                            Registry Path) *</label>-->
-<!--                                        <div class="flex gap-3">-->
-<!--                                            <input-->
-<!--                                                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sky-400 outline-none"-->
-<!--                                                type="text" value="registry.internal.ai/v2/models/yolov8_base:latest" />-->
-<!--                                            <button-->
-<!--                                                class="bg-indigo-600 px-6 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-500 transition-colors">-->
-<!--                                                <svg aria-hidden="true" class="iconify iconify&#45;&#45;material-symbols"-->
-<!--                                                    data-icon="material-symbols:cloud-download-outline" height="1em"-->
-<!--                                                    role="img" viewbox="0 0 24 24" width="1em"-->
-<!--                                                    xmlns="http://www.w3.org/2000/svg">-->
-<!--                                                    <path-->
-<!--                                                        d="M6.5 20q-2.275 0-3.887-1.575T1 14.575q0-1.95 1.175-3.475T5.25 9.15q.425-1.8 2.125-3.425T11 4.1q.825 0 1.413.588T13 6.1v6.05l1.6-1.55L16 12l-4 4l-4-4l1.4-1.4l1.6 1.55V6.1q-1.9.35-2.95 1.838T7 11h-.5q-1.45 0-2.475 1.025T3 14.5t1.025 2.475T6.5 18h12q1.05 0 1.775-.725T21 15.5t-.725-1.775T18.5 13H17v-2q0-1.2-.55-2.238T15 7V4.675q1.85.875 2.925 2.588T19 11q1.725.2 2.863 1.488T23 15.5q0 1.875-1.312 3.188T18.5 20zm5.5-8.95"-->
-<!--                                                        fill="currentColor"></path>-->
-<!--                                                </svg> 校验镜像-->
-<!--                                            </button>-->
-<!--                                        </div>-->
-<!--                                    </div>-->
+        <div class="space-y-6">
+            <div class="grid grid-cols-2 gap-x-12 gap-y-6">
+                <!-- 重点：这里独立让用户输入 Algorithm UUID -->
+                <div class="col-span-2">
+    <label class="block text-sm font-semibold text-slate-300 mb-2">所属算法 (Algorithm Name) *</label>
+    <div class="flex gap-4">
+        <!-- 用户看的是算法名称，实际 value 存的是 uuid -->
+        <select id="version-algo-select" class="w-full bg-slate-900 border border-indigo-500/50 text-white rounded-lg p-3 outline-none focus:border-indigo-500 cursor-pointer">
+            <option value="">点击获取算法列表...</option>
+        </select>
+        <button onclick="loadAlgorithms()" class="shrink-0 px-4 py-3 bg-slate-800 text-sm text-slate-300 rounded-lg hover:text-white transition border border-slate-700 flex items-center gap-2">
+            刷新列表
+        </button>
+    </div>
+    <p class="text-xs text-slate-500 mt-2">提示：请选择要绑定版本的算法，列表来源于数据库。</p>
+</div>
 
-                                    <div class="p-6 rounded-xl bg-slate-900/80 border border-slate-800">
-                                        <div class="flex justify-between items-center mb-6">
-                                            <h5 class="text-sm font-bold flex items-center gap-2 text-sky-400">
-                                                <svg aria-hidden="true" class="iconify iconify--material-symbols"
-                                                    data-icon="material-symbols:monitor-heart-outline" height="1em"
-                                                    role="img" viewbox="0 0 24 24" width="1em"
-                                                    xmlns="http://www.w3.org/2000/svg">
-                                                    <path
-                                                        d="M2 9V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v3h-2V6H4v3zm2 11q-.825 0-1.412-.587T2 18v-3h2v3h16v-3h2v3q0 .825-.587 1.413T20 20zm6.525-3.137q.25-.138.375-.413l3.1-6.2l1.1 2.2q.125.275.375.413T16 13h6v-2h-5.375L14.9 7.55q-.125-.275-.375-.387T14 7.05t-.525.113t-.375.387l-3.1 6.2l-1.1-2.2q-.125-.275-.375-.413T8 11H2v2h5.375L9.1 16.45q.125.275.375.413T10 17t.525-.137M12 12"
-                                                        fill="currentColor"></path>
-                                                </svg> 实时兼容性测试监控
-                                            </h5>
-                                            <span
-                                                class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 status-pulse">测试运行中
-                                                (Estimated: 45s)</span>
-                                        </div>
-                                        <div class="grid grid-cols-3 gap-6">
-                                            <div class="text-center">
-                                                <p class="text-[10px] text-slate-500 uppercase mb-2">CPU 使用率</p>
-                                                <div
-                                                    class="relative w-24 h-24 mx-auto flex items-center justify-center">
-                                                    <svg class="w-full h-full transform -rotate-90">
-                                                        <circle cx="48" cy="48" fill="transparent" r="40"
-                                                            stroke="#1e293b" stroke-width="8"></circle>
-                                                        <circle cx="48" cy="48" fill="transparent" r="40"
-                                                            stroke="#38bdf8" stroke-dasharray="251.2"
-                                                            stroke-dashoffset="150" stroke-linecap="round"
-                                                            stroke-width="8"></circle>
-                                                    </svg>
-                                                    <span class="absolute text-sm font-bold">35%</span>
-                                                </div>
-                                            </div>
-                                            <div class="text-center">
-                                                <p class="text-[10px] text-slate-500 uppercase mb-2">RAM 占用 (MB)</p>
-                                                <div
-                                                    class="relative w-24 h-24 mx-auto flex items-center justify-center">
-                                                    <svg class="w-full h-full transform -rotate-90">
-                                                        <circle cx="48" cy="48" fill="transparent" r="40"
-                                                            stroke="#1e293b" stroke-width="8"></circle>
-                                                        <circle cx="48" cy="48" fill="transparent" r="40"
-                                                            stroke="#818cf8" stroke-dasharray="251.2"
-                                                            stroke-dashoffset="100" stroke-linecap="round"
-                                                            stroke-width="8"></circle>
-                                                    </svg>
-                                                    <span class="absolute text-sm font-bold">1,240</span>
-                                                </div>
-                                            </div>
-                                            <div class="text-center">
-                                                <p class="text-[10px] text-slate-500 uppercase mb-2">GPU 核心负载</p>
-                                                <div
-                                                    class="relative w-24 h-24 mx-auto flex items-center justify-center">
-                                                    <svg class="w-full h-full transform -rotate-90">
-                                                        <circle cx="48" cy="48" fill="transparent" r="40"
-                                                            stroke="#1e293b" stroke-width="8"></circle>
-                                                        <circle cx="48" cy="48" fill="transparent" r="40"
-                                                            stroke="#c084fc" stroke-dasharray="251.2"
-                                                            stroke-dashoffset="80" stroke-linecap="round"
-                                                            stroke-width="8"></circle>
-                                                    </svg>
-                                                    <span class="absolute text-sm font-bold">68%</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="mt-8 grid grid-cols-2 gap-4 text-xs">
-                                            <div class="flex justify-between p-2 border-b border-slate-800">
-                                                <span class="text-slate-500 italic">启动耗时</span>
-                                                <span class="font-mono text-sky-400">1,280 ms</span>
-                                            </div>
-                                            <div class="flex justify-between p-2 border-b border-slate-800">
-                                                <span class="text-slate-500 italic">网络吞吐</span>
-                                                <span class="font-mono text-sky-400">452 KB/s</span>
-                                            </div>
-                                        </div>
-                                    </div>
-<!--                                    <div class="flex justify-end gap-4 pt-4 border-t border-slate-800">-->
-<!--                                        <button-->
-<!--                                            class="px-8 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition-all text-sm">取消注册</button>-->
-<!--                                        <button-->
-<!--                                            class="px-8 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 rounded-lg font-bold shadow-lg shadow-sky-900/40 hover:scale-105 transition-all">提交并生成UUID</button>-->
-<!--                                    </div>-->
-                                </div>
-                            </div>
-                        </div>
-                    </section>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-300 mb-2">版本号 (version) *</label>
+                    <input id="version-number" placeholder="例如：v1.0.0" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-300 mb-2">版本名称 (versionName) *</label>
+                    <input id="version-name" placeholder="例如：初始发布版" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-indigo-500">
+                </div>
+                
+                <div class="col-span-2">
+                    <label class="block text-sm font-semibold text-slate-300 mb-2">本地镜像名 (localImageName) *</label>
+                    <div class="flex items-center gap-4">
+                        <input type="text" id="local-image-name" placeholder="例如：my-algo:v1.0.0" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-indigo-500">
+                        <button id="btn-validate-image" onclick="fakeValidateImage()" class="shrink-0 px-4 py-3 bg-slate-800 text-sm text-slate-300 rounded-lg hover:text-white transition border border-slate-700">校验镜像</button>
+                    </div>
+                    <span id="image-status-msg" class="text-xs mt-2 hidden"></span>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-4 pt-6 border-t border-slate-800">
+                <button onclick="resetVersionForm()" class="px-8 py-2 border border-slate-700 text-white rounded-lg hover:bg-slate-800 transition-all text-sm">清空</button>
+                <button id="btn-submit-version" onclick="submitVersion()" class="px-8 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg shadow-sky-900/40 hover:scale-105 transition-all">
+                    提交并注册版本
+                </button>
+            </div>
+        </div>
+    </div>
+
+</section>
                     <!-- 在线代码修改 (Editor) -->
                     <section class="page-section h-full flex flex-col gap-4 hidden" id="page-editor">
                         <div class="flex justify-between items-center glass-panel p-4 rounded-xl border border-sky-500/20">

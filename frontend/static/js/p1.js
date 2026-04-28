@@ -137,7 +137,7 @@ function initCharts() {
         pieChart.resize();
     });
 }
-
+/*
 // 提交算法注册
 let currentAlgorithmId = null;  // 存储第一步注册成功的算法ID
 async function submitAlgorithm() {
@@ -187,6 +187,276 @@ async function submitAlgorithm() {
         console.error('提交失败:', error);
         alert('网络错误，请稍后重试');
     }
+}
+*/
+
+let isImageValidated = false; // 镜像校验状态
+
+/**
+ * 新增功能：从后端 API 拉取算法列表，并渲染为下拉菜单
+ * @param {string} preselectUuid - (可选) 加载完后自动选中的算法 UUID
+ */
+async function loadAlgorithms(preselectUuid = null) {
+    const selectElem = document.getElementById('version-algo-select');
+    selectElem.innerHTML = '<option value="">加载中...</option>';
+
+    try {
+        // 请求你提供的 GET API。Demo 演示中为了拿到足够多的数据，pageSize 设为 100
+        const response = await fetch('/api/v1/algorithms?pageNum=1&pageSize=100');
+        const resData = await response.json();
+
+        // 假设分页返回的格式为 { code: 200, data: { items: [...] } }
+        // 注意：需根据你实际后端的 paginate() 包装器结构微调 resData.data.items 
+        if (response.ok && resData.data && resData.data.items) {
+            selectElem.innerHTML = '<option value="">请选择算法...</option>';
+            
+            resData.data.items.forEach(algo => {
+                const opt = document.createElement('option');
+                // value 绑定 uuid 给后续 API 请求使用
+                opt.value = algo.uuid; 
+                // 页面展示：算法名称 (包含一个 Code 作为补充区分)
+                opt.textContent = `${algo.algorithmName} [${algo.algorithmCode}]`; 
+                selectElem.appendChild(opt);
+            });
+
+            // 如果有刚注册完传过来的 uuid，则自动选中
+            if (preselectUuid) {
+                selectElem.value = preselectUuid;
+            }
+        } else {
+            selectElem.innerHTML = '<option value="">加载失败或暂无数据</option>';
+        }
+    } catch (error) {
+        console.error("加载算法列表失败:", error);
+        selectElem.innerHTML = '<option value="">网络请求异常</option>';
+    }
+}
+
+/**
+ * Tab 切换效果控制
+ * 优化：在 Tab 切换时，如果是切换到“版本注册”，自动刷新一次算法列表
+ */
+function switchTab(target) {
+    const btnAlgo = document.getElementById('tab-btn-algo');
+    const btnVersion = document.getElementById('tab-btn-version');
+    const panelAlgo = document.getElementById('panel-algo');
+    const panelVersion = document.getElementById('panel-version');
+
+    if (target === 'algo') {
+        btnAlgo.className = "px-8 py-3 rounded-xl font-bold transition-all duration-300 bg-sky-500 text-white shadow-lg shadow-sky-500/30";
+        btnVersion.className = "px-8 py-3 rounded-xl font-bold transition-all duration-300 bg-transparent text-slate-400 hover:text-white hover:bg-slate-800";
+        panelVersion.classList.add('hidden');
+        panelAlgo.classList.remove('hidden');
+    } else {
+        btnVersion.className = "px-8 py-3 rounded-xl font-bold transition-all duration-300 bg-indigo-500 text-white shadow-lg shadow-indigo-500/30";
+        btnAlgo.className = "px-8 py-3 rounded-xl font-bold transition-all duration-300 bg-transparent text-slate-400 hover:text-white hover:bg-slate-800";
+        panelAlgo.classList.add('hidden');
+        panelVersion.classList.remove('hidden');
+        
+        // 【新增】：每次切入版本面板时，静默加载最新列表
+        if (document.getElementById('version-algo-select').options.length <= 1) {
+            loadAlgorithms();
+        }
+    }
+}
+
+/**
+ * 模拟文件选择并提取路径
+ * inputElem: 文件选择器元素
+ * targetInputId: 目标填入的文本框ID
+ * mockPrefix: 假装的服务器前缀路径 (Demo用)
+ */
+function handleFileSelect(inputElem, targetInputId, mockPrefix) {
+    if (inputElem.files && inputElem.files.length > 0) {
+        const fileName = inputElem.files[0].name;
+        // 拼接成类似真实的后端路径：/opt/algorithms/code/xxxx.py
+        document.getElementById(targetInputId).value = mockPrefix + fileName;
+    }
+}
+
+/**
+ * 辅助函数：生成前端唯一算法编码
+ */
+function generateAlgorithmCode() {
+    return 'ALG-' + Date.now() + '-' + Math.floor(1000 + Math.random() * 9000);
+}
+
+/**
+ * 提交算法基础信息
+ */
+async function submitAlgorithm() {
+    const btn = document.getElementById('btn-submit-algo');
+    
+    const name = document.getElementById('algo-name').value.trim();
+    const type = document.getElementById('algo-type').value;
+    const codePath = document.getElementById('algo-codepath').value.trim();
+    const configPath = document.getElementById('algo-configpath').value.trim();
+
+    if (!name || !codePath || !configPath) {
+        alert("请填写所有必填项！");
+        return;
+    }
+
+    const payload = {
+        algorithmCode: generateAlgorithmCode(),
+        algorithmName: name,
+        algorithmType: type,
+        codePath: codePath,
+        configPath: configPath
+    };
+
+    try {
+        btn.innerHTML = '注册中...';
+        btn.disabled = true;
+
+        const response = await fetch('/api/v1/algorithms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const resData = await response.json();
+
+        // 假定正常返回数据在 data 层
+        if (response.ok && resData.data && resData.data.uuid) {
+            const newUuid = resData.data.uuid;
+            alert(`🎉 算法注册成功！\n系统生成的算法 UUID 是: ${newUuid}\n(已自动为您填入版本注册面板)`);
+            
+            // 【修改】：不填输入框了，而是先触发加载列表，把新生成的 uuid 传进去要求它自动选中
+            await loadAlgorithms(newUuid);
+            switchTab('version'); 
+        } else {
+            alert("注册失败：" + (resData.message || "未知错误"));
+        }
+    } catch (error) {
+        console.error("API请求错误:", error);
+        alert("网络请求失败，请检查后端服务是否启动。");
+    } finally {
+        btn.innerHTML = '确认注册算法';
+        btn.disabled = false;
+    }
+}
+
+/**
+ * 假装校验本地镜像名
+ */
+function fakeValidateImage() {
+    const imageName = document.getElementById('local-image-name').value.trim();
+    const statusMsg = document.getElementById('image-status-msg');
+    
+    if (!imageName) {
+        alert("请输入本地镜像名称！");
+        return;
+    }
+
+    statusMsg.classList.remove('hidden', 'text-green-500', 'text-red-500');
+    statusMsg.classList.add('text-indigo-400');
+    statusMsg.innerText = "正在模拟连接 Docker Daemon 校验镜像...";
+
+    setTimeout(() => {
+        if (imageName.includes(':')) {
+            statusMsg.classList.remove('text-indigo-400');
+            statusMsg.classList.add('text-green-500');
+            statusMsg.innerText = "✅ 校验通过：镜像合法且存在。";
+            isImageValidated = true;
+        } else {
+            statusMsg.classList.remove('text-indigo-400');
+            statusMsg.classList.add('text-red-500');
+            statusMsg.innerText = "❌ 校验失败：缺少Tag标识 (例: algo:v1)。";
+            isImageValidated = false;
+        }
+    }, 800);
+}
+
+/**
+ * 提交版本信息
+ */
+/**
+ * 修改：版本注册提取下拉框的 value
+ */
+async function submitVersion() {
+    // 【修改】：从原来的 text input 改成了取 select 下拉框的值
+    const targetUuid = document.getElementById('version-algo-select').value;
+    
+    const version = document.getElementById('version-number').value.trim();
+    const versionName = document.getElementById('version-name').value.trim();
+    const localImageName = document.getElementById('local-image-name').value.trim();
+
+    if (!targetUuid) {
+        alert("请在下拉列表中选择一个所属算法！");
+        return;
+    }
+    if (!version || !versionName || !localImageName) {
+        alert("请填写所有必填项！");
+        return;
+    }
+    if (!isImageValidated) {
+        alert("请先点击【校验镜像】，确保校验通过后才能提交！");
+        return;
+    }
+
+    const payload = {
+        version: version,
+        versionName: versionName,
+        localImageName: localImageName,
+        entrypoint: "", 
+        sourceRevision: "",
+        configRevision: "",
+        changelog: "从前端Demo注册",
+        sourceType: "LOCAL", 
+        imagePullPolicy: "IF_NOT_PRESENT",
+        registryUrl: "",
+        repositoryName: "",
+        imageTag: version,
+        imageDigest: "",
+        fullImageUri: localImageName,
+        imageSize: 0
+    };
+
+    const btn = document.getElementById('btn-submit-version');
+    
+    try {
+        btn.innerText = '提交中...';
+        btn.disabled = true;
+
+        const response = await fetch(`/api/v1/algorithms/${targetUuid}/versions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const resData = await response.json();
+
+        if (response.ok) {
+            alert("🚀 算法版本注册成功！");
+            resetVersionForm();
+        } else {
+            alert("版本注册失败：" + (resData.message || "后端返回错误"));
+        }
+    } catch (error) {
+        console.error("API请求错误:", error);
+        alert("网络请求失败，请检查后端。");
+    } finally {
+        btn.innerText = '提交并注册版本';
+        btn.disabled = false;
+    }
+}
+
+/**
+ * 重置表单工具函数
+ */
+function resetAlgoForm() {
+    document.getElementById('algo-name').value = '';
+    document.getElementById('algo-codepath').value = '';
+    document.getElementById('algo-configpath').value = '';
+}
+
+function resetVersionForm() {
+    document.getElementById('version-number').value = '';
+    document.getElementById('version-name').value = '';
+    document.getElementById('local-image-name').value = '';
+    document.getElementById('image-status-msg').classList.add('hidden');
+    isImageValidated = false;
 }
 
 // 重置表单
