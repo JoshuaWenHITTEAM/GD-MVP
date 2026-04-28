@@ -88,214 +88,175 @@ document.querySelector('.group').addEventListener('click', () => {
 });
 
 // 控制台日志部分：使用 SSE 实时接收后端日志并渲染
-
 document.addEventListener('DOMContentLoaded', () => {
+    // --- 1. 变量定义 ---
     const startBtn = document.getElementById('start-train-btn');
     const stopBtn = document.getElementById('stop-train-btn');
     const logContainer = document.getElementById('agent-log-container');
-
-    let currentSessionId = null;
+    
+    let selectedTaskType = null; // 选中的模块类型: preprocess, detect, track
+    let currentJobId = null;
     let eventSource = null;
     let isExpectedClose = false;
 
-    // 辅助函数：切换按钮状态
+    // --- 2. 核心：卡片选中逻辑 ---
+    // 为三个卡片绑定点击事件
+    const moduleCards = {
+        'preprocess': { id: 'status-01', card: document.querySelector('.top-32.left-32 .module-card') },
+        'detect': { id: 'status-02', card: document.querySelector('.top-32.right-32 .module-card') },
+        'track': { id: 'status-03', card: document.querySelector('.bottom-32.left-32 .module-card') }
+    };
+
+    // 自动寻找并绑定点击事件（根据你的 HTML 结构）
+    Object.keys(moduleCards).forEach(type => {
+        const cardElement = moduleCards[type].card;
+        if (cardElement) {
+            cardElement.style.cursor = 'pointer';
+            cardElement.onclick = () => {
+                selectedTaskType = type;
+                // 清除所有选中效果
+                Object.values(moduleCards).forEach(m => m.card.classList.remove('selected-card', 'border-blue-500'));
+                // 给当前点击的加个高亮（利用 Tailwind 类或自定义类）
+                cardElement.classList.add('selected-card', 'border-blue-500');
+                console.log("已选中模块:", type);
+            };
+        }
+    });
+
+    // --- 3. UI 状态管理 ---
     function setUIState(running) {
-        const sBtn = document.getElementById('start-train-btn');
-        const tBtn = document.getElementById('stop-train-btn');
         if (running) {
-            sBtn.disabled = true;
-            sBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            tBtn.disabled = false;
-            tBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            startBtn.disabled = true;
+            startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            stopBtn.disabled = false;
+            stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         } else {
-            sBtn.disabled = false;
-            sBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-700'); // 顺便移除背景色
-            tBtn.disabled = true;
-            tBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            startBtn.disabled = false;
+            startBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-700');
+            stopBtn.disabled = true;
+            stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            stopBtn.innerHTML = '<span class="iconify" data-icon="material-symbols:stop-circle-outline"></span><span>终止训练任务</span>';
         }
     }
 
-    function resetCards() {
-        const ids = ['01', '02', '03'];
-        ids.forEach(id => {
-            // 1. 恢复状态标签样式和文字
-            const statusEl = document.getElementById(`status-${id}`);
-            if (statusEl) {
-                statusEl.className = "text-[10px] py-0.5 px-2 bg-slate-500/20 text-slate-400 rounded";
-                statusEl.textContent = "等待中";
-            }
-
-            // 2. 恢复算法名称文字和样式
-            const algoEl = document.getElementById(`algo-${id}`);
-            if (algoEl) {
-                algoEl.textContent = "待载入";
-                algoEl.className = "text-slate-500";
-            }
-
-            // 3. 隐藏版本信息
-            const verEl = document.getElementById(`ver-${id}`);
-            if (verEl) {
-                verEl.classList.add('opacity-0');
-            }
-        });
-    }
-
-    // 辅助函数：根据 status 和 event 返回对应的 Tailwind 颜色类
-    // 未完成
-    // 等待后端对接status
-    function getLogStyle(logData) {
-        if (logData.event === 'heartbeat') {
-            return {
-                bg: 'bg-slate-800/40',
-                border: 'border-slate-600',
-                text: 'text-slate-400',
-                time: 'text-slate-500'
-            };
-        }
-        if (logData.status === 'success') {
-            return {
-                bg: 'bg-emerald-500/5',
-                border: 'border-emerald-500',
-                text: 'text-slate-300',
-                time: 'text-emerald-400'
-            };
-        }
-        if (logData.status === 'failed') {
-            return {
-                bg: 'bg-red-500/5',
-                border: 'border-red-500',
-                text: 'text-slate-300',
-                time: 'text-red-400'
-            };
-        }
-        // 默认蓝色 (running)
-        return {
-            bg: 'bg-blue-500/5',
-            border: 'border-blue-500',
-            text: 'text-slate-300',
-            time: 'text-blue-400'
-        };
-    }
-
-    // 渲染单行日志
     function appendLog(logData) {
-        const style = getLogStyle(logData);
+        // 适配新后端的字段: logData.ts, logData.message
         const logHtml = `
-            <div class="text-[11px] p-2 ${style.bg} border-l-2 ${style.border} ${style.text} animate-fade-in">
-                <span class="${style.time}">[${logData.ts}]</span> ${logData.message}
+            <div class="text-[11px] p-2 bg-blue-500/5 border-l-2 border-blue-500 text-slate-300 animate-fade-in">
+                <span class="text-blue-400">[${logData.ts || new Date().toLocaleTimeString()}]</span> ${logData.message}
             </div>
         `;
         logContainer.insertAdjacentHTML('beforeend', logHtml);
-        
-        // 自动滚动到底部
         logContainer.scrollTop = logContainer.scrollHeight;
     }
 
-    // 点击“开始”按钮
+    // --- 4. 启动任务 ---
     startBtn.onclick = async () => {
-        // 1. 禁用按钮防止重复点击
-        resetCards(); // 重置所有卡片 UI
-        setUIState(true);
-        startBtn.classList.add('bg-slate-700');
+        if (!selectedTaskType) {
+            alert("请先点击选择一个算法模块卡片（预处理/检测/跟踪）！");
+            return;
+        }
 
-        
-        // 2. 清空之前的日志
-        logContainer.innerHTML = '<div class="text-[11px] text-slate-500 italic">正在建立与 Agent 的连接...</div>';
+        setUIState(true);
+        isExpectedClose = false;
+        logContainer.innerHTML = '<div class="text-[11px] text-slate-500 italic">正在向后端申请训练资源...</div>';
 
         try {
-            const response = await fetch('/api/v1/agent-training/sessions', {
+            // 注意：这里调的是你自己的 BFF 接口
+            const response = await fetch('/api/v1/train/jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ config: "p1_selected_uuids" }) 
+                body: JSON.stringify({ 
+                    task_type: selectedTaskType,
+                    config: {
+                        learning_rate: document.getElementById('param-lr')?.value || 0.001,
+                        epsilon: document.getElementById('param-epsilon')?.value || 0.9
+                    }
+                })
             });
             
             if (!response.ok) throw new Error("后端服务响应异常");
 
             const data = await response.json();
-            currentSessionId = data.session_id; 
+            currentJobId = data.job_id; 
 
-            eventSource = new EventSource(`/api/v1/agent-training/sessions/${currentSessionId}/events`);
-
-            eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    appendLog(data);
-
-                    // 识别指令
-                    if (data.event === 'switch_module01') updateCardUI('01', data);
-                    if (data.event === 'switch_module02') updateCardUI('02', data);
-                    if (data.event === 'switch_module03') updateCardUI('03', data);
-
-                    if (['success', 'failed', 'terminated'].includes(data.status)) {
-                        isExpectedClose = true;
-                        setTimeout(() => {
-                            closeConnection(); // 关闭连接，恢复按钮状态
-                        }, 500);
-                    }
-                } catch (e) {
-                    console.error("解析错误", e);
-                }
-            };
-
-            /**
-             * 通用的卡片更新函数
-             * @param {string} index - '01', '02', 或 '03'
-             * @param {object} data - 后端传来的 JSON 对象
-             */
-            function updateCardUI(index, data) {
-                const statusEl = document.getElementById(`status-${index}`);
-                const algoEl = document.getElementById(`algo-${index}`);
-                const verEl = document.getElementById(`ver-${index}`);
-
-                if (!statusEl) return;
-
-                // 更新文字内容（如果有传的话）
-                if (data.algo_name) algoEl.textContent = data.algo_name;
-                if (data.version) {
-                    verEl.textContent = data.version;
-                    verEl.classList.remove('opacity-0');
-                }
-
-                // 根据 status 切换样式
-                if (data.status === 'running') {
-                    // 运行中：蓝色 + 呼吸灯动画
-                    statusEl.className = "text-[10px] py-0.5 px-2 bg-blue-500/20 text-blue-400 rounded animate-pulse";
-                    statusEl.textContent = "运行中";
-                    algoEl.className = "text-blue-400 font-bold";
-                } else if (data.status === 'completed') {
-                    // 已完成：绿色
-                    statusEl.className = "text-[10px] py-0.5 px-2 bg-emerald-500/20 text-emerald-400 rounded";
-                    statusEl.textContent = "已完成";
-                    algoEl.className = "text-emerald-400 font-bold";
-                } else {
-                    // 其他情况（如等待中）
-                    statusEl.className = "text-[10px] py-0.5 px-2 bg-slate-500/20 text-slate-400 rounded";
-                    statusEl.textContent = "等待中";
-                }
-            }
-
-            eventSource.onerror = (err) => {
-                if (!isExpectedClose) {
-                    console.error("SSE 异常中断");
-                    appendLog({ 
-                        ts: new Date().toLocaleTimeString(), 
-                        message: '与服务器的日志连接异常中断', 
-                        status: 'failed' 
-                    });
-                }
-                
-                if (!isExpectedClose) {
-                    closeConnection();
-                }
-            };
+            // 建立监听：注意后端现在使用命名事件
+            subscribeToJob(currentJobId);
 
         } catch (error) {
-            logContainer.innerHTML = `<div class="text-[11px] text-red-400">启动失败: ${error.message}</div>`;
+            appendLog({ message: `启动失败: ${error.message}`, status: 'failed' });
             setUIState(false);
         }
     };
 
-        // --- 【终止任务核心逻辑】 ---
+    // --- 5. 核心：监听命名事件 (SSE) ---
+    function subscribeToJob(jobId) {
+        eventSource = new EventSource(`/api/v1/train/jobs/${jobId}/stream`);
+
+        // 监听 [log] 事件 -> 打印到控制台
+        eventSource.addEventListener('log', (e) => {
+            const data = JSON.parse(e.data);
+            appendLog(data);
+        });
+
+        // 监听 [status] 事件 -> 更新卡片
+        eventSource.addEventListener('status', (e) => {
+            const data = JSON.parse(e.data);
+            const map = { 'preprocess': '01', 'detect': '02', 'track': '03' };
+            const statusEl = document.getElementById(`status-${map[selectedTaskType]}`);
+            if (statusEl) {
+                statusEl.textContent = data.status;
+                statusEl.className = "text-xs py-0.5 px-2 bg-blue-500/20 text-blue-400 rounded animate-pulse";
+            }
+        });
+
+        // 监听 [completed] 事件
+        eventSource.addEventListener('completed', (e) => {
+            isExpectedClose = true;
+            appendLog({ message: "✅ 训练任务已成功完成", ts: new Date().toLocaleTimeString() });
+            setTimeout(closeConnection, 1000);
+        });
+
+        // 监听 [failed] 事件
+        eventSource.addEventListener('failed', (e) => {
+            isExpectedClose = true;
+            appendLog({ message: "❌ 任务运行失败", ts: new Date().toLocaleTimeString() });
+            setTimeout(closeConnection, 1000);
+        });
+
+        eventSource.onerror = () => {
+            if (!isExpectedClose) {
+                appendLog({ message: "⚠️ 与后端的通信流异常中断", ts: new Date().toLocaleTimeString() });
+                closeConnection();
+            }
+        };
+    }
+
+    // --- 6. 终止任务 ---
+    stopBtn.onclick = async () => {
+        if (!currentJobId) return;
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '<span class="iconify animate-spin" data-icon="material-symbols:sync"></span>停止中...';
+
+        try {
+            await fetch(`/api/v1/train/jobs/${currentJobId}/stop`, { method: 'POST' });
+        } catch (error) {
+            alert("停止请求失败");
+            stopBtn.disabled = false;
+        }
+    };
+
+    function closeConnection() {
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+        currentJobId = null;
+        setUIState(false);
+    }
+});
+/*
+        // --- 【旧版终止任务核心逻辑】 ---
     stopBtn.onclick = async () => {
         if (!currentSessionId) return;
 
@@ -320,15 +281,5 @@ document.addEventListener('DOMContentLoaded', () => {
             stopBtn.innerHTML = '<span class="iconify" data-icon="material-symbols:stop-circle-outline"></span><span>终止训练任务</span>';
         }
     };
-
-    function closeConnection() {
-        if (eventSource) {
-            isExpectedClose = true;
-            eventSource.close();
-            eventSource = null;
-        }
-        currentSessionId = null;
-        setUIState(false);
-    }
-});
+*/
 

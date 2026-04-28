@@ -1,5 +1,5 @@
 # app/api/endpoints.py
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request,UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.models.schemas import AlgorithmRegister, AlgorithmResponse
@@ -11,9 +11,9 @@ import uuid
 import os
 import shutil
 from pathlib import Path
+import httpx
 
-# 注意：下方为假想逻辑，等待数据链路部分具体实现后再完善
-from app.services.training_service import training_service
+from frontend.app.services.job_service import job_service
 
 # 创建 APIRouter 实例，用于分组管理路由（例如 web 相关的路由）
 router = APIRouter()
@@ -302,45 +302,31 @@ async def get_algorithm_file_content(algorithm_id: int, db: Session = Depends(ge
 #           p2部分接口
 #==================================
 
-# sessions接口需要进一步探讨传参
-# 等待完善！
-@router.post("/v1/agent-training/sessions")
-async def start_training(request: Request, background_tasks: BackgroundTasks):
-    """启动训练任务"""
-    # 这里是参数获取占位
-    # body = await request.json()
-    params_placeholder = {"info": "此处以后放置 P1 传来的算法 UUID"}
-    
-    session_id = training_service.create_session()
-    
-    # 后台执行
-    background_tasks.add_task(training_service.start_training_logic, session_id, params_placeholder)
-    
-    return {"session_id": session_id, "status": "started"}
 
-@router.post("/v1/agent-training/sessions/{session_id}/stop")
-async def stop_training(session_id: str):
-    """停止训练任务"""
-    success = training_service.stop_session(session_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="未找到该训练任务")
-    return {"message": "停止指令已发送", "session_id": session_id}
+@router.get("/v1/train/jobs")
+async def get_jobs():
+    return await job_service.get_history()
 
-@router.get("/v1/agent-training/sessions/{session_id}/events")
-async def sse_stream(session_id: str, request: Request):
-    """SSE 日志流"""
-    queue = training_service.get_queue(session_id)
-    if not queue:
-        raise HTTPException(status_code=404, detail="任务不存在")
+@router.post("/v1/train/jobs")
+async def create_job(request: Request):
+    data = await request.json()
+    return await job_service.create_job(data['task_type'], data['config'])
 
-    async def event_generator():
-        while True:
-            if await request.is_disconnected():
-                break
-            data = await queue.get()
-            if data == "EOF":
-                break
-            json_data = json.dumps(data, ensure_ascii=False)
-            yield {"data": json_data}
+@router.get("/v1/train/jobs/{job_id}")
+async def get_job_detail(job_id: str):
+    return await job_service.get_job_detail(job_id)
 
-    return EventSourceResponse(event_generator())
+@router.post("/v1/train/jobs/{job_id}/stop")
+async def stop_job(job_id: str):
+    return await job_service.stop_job(job_id)
+
+@router.get("/v1/train/jobs/{job_id}/stream")
+async def stream_job(job_id: str):
+    # 直接代理后端的 SSE 流
+    async def event_publisher():
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream("GET", f"http://127.0.0.1:8000/api/train/jobs/{job_id}/stream") as resp:
+                async for line in resp.aiter_lines():
+                    if line:
+                        yield line
+    return EventSourceResponse(event_publisher())

@@ -24,7 +24,6 @@ from app.models.database import init_db
 app = FastAPI(title="MVP Demo")
 
 # 允许跨域
-"""
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -32,7 +31,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-"""
 
 # 启动时初始化数据库
 @app.on_event("startup")
@@ -50,4 +48,4 @@ app.include_router(api_router, prefix="/api", tags=["数据接口"])
 if __name__ == "__main__":
     import uvicorn
     # app路径frontend.app.main:app
-    uvicorn.run("frontend.app.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("frontend.app.main:app", host="127.0.0.1", port=8001, reload=True)
