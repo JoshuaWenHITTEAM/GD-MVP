@@ -22,16 +22,16 @@ router = APIRouter()
 async def test_api():
     return {"status": "success", "message": "API 接口已连通"}
 
-#==============================
-#           p1部分接口
-#==============================
-
+#========================================
+#           p1部分接口(已弃用)
+#========================================
+"""
 @router.post("/algorithm/register", response_model=AlgorithmResponse, tags=["算法管理"])
 async def register_algorithm(
     algorithm: AlgorithmRegister,
     db: Session = Depends(get_db)
 ):
-    """
+    """"""
     注册新算法
     - 算法名称：必填，最多 32 字符
     - 版本号：必填，语义化版本
@@ -39,7 +39,7 @@ async def register_algorithm(
     - 标签：必填，任务类型
     - 描述：可选
     - 权限：公开/共享/私有
-    """
+    """"""
     # 检查同名算法是否已存在
     existing = db.query(AlgorithmModel).filter(
         AlgorithmModel.name == algorithm.name,
@@ -72,13 +72,13 @@ async def register_algorithm(
 
 @router.get("/algorithms", response_model=list[AlgorithmResponse], tags=["算法管理"])
 async def list_algorithms(db: Session = Depends(get_db)):
-    """获取所有已注册的算法列表"""
+    # 获取所有已注册的算法列表
     algorithms = db.query(AlgorithmModel).order_by(AlgorithmModel.created_at.desc()).all()
     return algorithms
 
 @router.get("/algorithm/{algorithm_id}", response_model=AlgorithmResponse, tags=["算法管理"])
 async def get_algorithm(algorithm_id: int, db: Session = Depends(get_db)):
-    """根据 ID 获取算法详情"""
+    # 根据 ID 获取算法详情
     db_algorithm = db.query(AlgorithmModel).filter(AlgorithmModel.id == algorithm_id).first()
     if not db_algorithm:
         raise HTTPException(status_code=404, detail="算法未找到")
@@ -138,11 +138,11 @@ async def search_algorithms(
         algorithm_type: str = None,  # 可选：算法类型，如 "Deep Learning" 或 "Machine Learning"
         db: Session = Depends(get_db)
 ):
-    """
+    """"""
     搜索算法：
     - keyword：模糊匹配算法名称（name）或描述（description）
     - algorithm_type：精确匹配算法类型
-    """
+    """"""
     query = db.query(AlgorithmModel)
 
     # 关键词模糊搜索（不区分大小写，使用 ilike）
@@ -175,12 +175,12 @@ async def upload_algorithm_version(
     version_number: str = Form(None),   # 前端可选传入版本号
     db: Session = Depends(get_db)
 ):
-    """
+    """"""
     为指定算法上传文件并进行校验
     - algorithm_id: 算法ID
     - file: 上传的文件（.py, .json 等）
     - rule: 校验规则，例如 'json_schema', 'python_syntax' 等
-    """
+    """"""
     # 1检查算法是否存在
     algorithm = db.query(AlgorithmModel).filter(AlgorithmModel.id == algorithm_id).first()
     if not algorithm:
@@ -245,7 +245,7 @@ async def upload_algorithm_version(
     }
 
 def validate_file(contents: bytes, extension: str, rule: str) -> dict:
-    """根据规则校验文件内容"""
+    # 根据规则校验文件内容
     # if rule == "json_schema":
     #     # 示例：校验是否为合法JSON且包含必要字段
     #     try:
@@ -274,7 +274,7 @@ def validate_file(contents: bytes, extension: str, rule: str) -> dict:
 
 @router.get("/algorithm/{algorithm_id}/file-content", tags=["算法管理"])
 async def get_algorithm_file_content(algorithm_id: int, db: Session = Depends(get_db)):
-    """获取算法当前关联的镜像文件内容"""
+    # 获取算法当前关联的镜像文件内容
     algorithm = db.query(AlgorithmModel).filter(AlgorithmModel.id == algorithm_id).first()
     if not algorithm:
         raise HTTPException(status_code=404, detail="算法不存在")
@@ -297,7 +297,7 @@ async def get_algorithm_file_content(algorithm_id: int, db: Session = Depends(ge
         "algorithm_name": algorithm.name,
         "algorithm_version": algorithm.version
     }
-
+"""
 #==================================
 #           p2部分接口
 #==================================

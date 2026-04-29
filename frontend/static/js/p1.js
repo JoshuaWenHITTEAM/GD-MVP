@@ -478,144 +478,40 @@ window.onload = () => {
     initCharts();
 };
 
-// 加载并渲染算法列表（用于 page-query）
+// 加载并渲染算法列表
 async function loadAlgorithmList() {
     const container = document.querySelector('#page-query .grid.grid-cols-1');
     if (!container) return;
 
     try {
-        const response = await fetch('/api/algorithms');
+        // 【修改1】修改请求API，并适配分页查询的格式
+        const response = await fetch(`${API_BASE_URL}/api/v1/algorithms?pageNum=1&pageSize=100`);
         if (!response.ok) throw new Error('加载失败');
-        const algorithms = await response.json();
+        
+        const resData = await response.json();
+        // 根据之前你提供的后端代码，这里通常包裹在 data.items 里
+        const algorithms = (resData.data && resData.data.items) ? resData.data.items :[];
+        
+        // 调用专门的渲染函数（去除了原来在这里重复写的一大段 HTML）
         renderAlgorithmList(algorithms);
 
-        if (algorithms.length === 0) {
-            container.innerHTML = '<div class="glass-panel rounded-xl p-10 text-center text-slate-500">暂无算法，请先去“资产注册”页面添加。</div>';
-            return;
-        }
-
-        // 生成列表 HTML
-        container.innerHTML = algorithms.map(alg => `
-            <div class="glass-panel rounded-xl p-5 group hover:border-sky-500/50 transition-all" data-id="${alg.id}">
-                <div class="flex justify-between items-start">
-                    <div class="flex gap-4">
-                        <div class="w-16 h-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
-                            <svg class="iconify text-3xl" data-icon="material-symbols:model-training" width="1em" height="1em" viewBox="0 0 24 24">
-                                <path d="M5.15 18.85q-1.025-1.2-1.588-2.687T3 13q0-3.75 2.625-6.375T12 4h.2l-1.6-1.6L12 1l4 4l-4 4l-1.425-1.425L12.15 6H12Q9.1 6 7.05 8.05T5 13q0 1.275.412 2.4t1.163 2.025zM11 18.5q0-.575-.387-1.137t-.863-1.175t-.862-1.275T8.5 13.5q0-1.45 1.025-2.475T12 10t2.475 1.025T15.5 13.5q0 .75-.387 1.413t-.863 1.274t-.862 1.175T13 18.5zm0 2.5v-1.5h2V21zm7.85-2.15l-1.425-1.425q.75-.9 1.163-2.025T19 13q0-1.65-.687-3.062t-1.888-2.363L17.85 6.15q1.45 1.25 2.3 3.013T21 13q0 1.675-.562 3.163T18.85 18.85" fill="currentColor"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-3">
-                                <h5 class="text-lg font-bold">${escapeHtml(alg.name)}</h5>
-                                <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">${escapeHtml(alg.version)}</span>
-                                <span class="px-2 py-0.5 rounded text-[10px] ${alg.algorithm_type === 'deep_learning' ? 'bg-sky-500/10 text-sky-400' : 'bg-indigo-500/10 text-indigo-400'} border">${alg.algorithm_type === 'deep_learning' ? '学习方法' : '传统方法'}</span>
-                                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border">已注册</span>
-                            </div>
-                            <p class="text-sm text-slate-500 mt-1 max-w-2xl">${escapeHtml(alg.description) || '暂无描述'}</p>
-                            <div class="flex items-center gap-4 mt-3 text-[11px] text-slate-500 italic">
-                                <span class="flex items-center gap-1">📋 UUID: ${alg.id}</span>
-                                <span class="flex items-center gap-1">🕒 更新于: ${new Date(alg.updated_at).toLocaleDateString()}</span>
-                                <span class="flex items-center gap-1 text-sky-400">⭐ 收藏(0)</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <button class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs transition-colors" onclick="showAlgorithmDetail(${alg.id})">查看详情</button>
-                        <button class="px-4 py-1.5 rounded-lg bg-sky-900/30 text-sky-400 hover:bg-sky-900/50 border border-sky-700/50 text-xs transition-colors" onclick="editAlgorithm(${alg.id})">在线修改</button>
-                        <button class="px-4 py-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 text-xs transition-colors" onclick="deleteAlgorithm(${alg.id}, '${escapeHtml(alg.name)}')">删除</button>
-                    </div>
-                </div>
-            </div>
-        `).join('');
     } catch (error) {
-        console.error(error);
-        const container = document.querySelector('#page-query .grid.grid-cols-1');
+        console.error("加载列表报错:", error);
         if (container) {
             container.innerHTML = '<div class="glass-panel rounded-xl p-10 text-center text-red-400">加载算法列表失败，请检查后端服务。</div>';
         }
-
     }
 }
 
 // 辅助函数：防止 XSS
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
+    return String(str).replace(/[&<>]/g, function(m) {
         if (m === '&') return '&amp;';
         if (m === '<') return '&lt;';
         if (m === '>') return '&gt;';
         return m;
     });
-}
-
-async function showAlgorithmDetail(id) {
-    try {
-        const response = await fetch(`/api/algorithm/${id}`);
-        if (!response.ok) throw new Error('获取详情失败');
-        const alg = await response.json();
-
-        // 填充弹窗内容
-        const modal = document.getElementById('modal-detail');
-        // 更新 UUID
-        modal.querySelector('.font-mono').innerText = `UUID: ${alg.id}`;
-        // 更新主体内容（你需要根据实际弹窗结构修改）
-        const detailBody = modal.querySelector('.flex-1.overflow-y-auto');
-        // 简单示例：你也可以完全重写内部 HTML
-        detailBody.innerHTML = `
-            <div class="grid grid-cols-2 gap-8">
-                <div class="space-y-4">
-                    <h6 class="text-xs font-bold text-sky-400 uppercase tracking-widest border-b border-sky-500/20 pb-2 italic">基本信息</h6>
-                    <div class="space-y-2">
-                        <p><span class="text-slate-400">名称：</span> ${escapeHtml(alg.name)}</p>
-                        <p><span class="text-slate-400">版本：</span> ${escapeHtml(alg.version)}</p>
-                        <p><span class="text-slate-400">类型：</span> ${alg.algorithm_type === 'deep_learning' ? '深度学习' : '机器学习'}</p>
-                        <p><span class="text-slate-400">标签：</span> ${escapeHtml(alg.tags)}</p>
-                        <p><span class="text-slate-400">描述：</span> ${escapeHtml(alg.description) || '无'}</p>
-                        <p><span class="text-slate-400">权限：</span> ${alg.auth}</p>
-                        <p><span class="text-slate-400">创建时间：</span> ${new Date(alg.created_at).toLocaleString()}</p>
-                    </div>
-                </div>
-                <div class="space-y-4">
-                    <h6 class="text-xs font-bold text-indigo-400 uppercase tracking-widest border-b border-indigo-500/20 pb-2 italic">历史版本</h6>
-                    <div class="space-y-2">
-                        <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
-                            <div><span class="text-sky-400">${escapeHtml(alg.version)}</span><span class="text-slate-500 text-[10px] ml-2">当前版本</span></div>
-                            <svg class="iconify text-emerald-400" data-icon="material-symbols:check-circle" width="1em" height="1em"></svg>
-                        </div>
-                        <!-- 如果有历史版本列表可以后续扩展 -->
-                    </div>
-                </div>
-            </div>
-            <div class="mt-8 space-y-4">
-                <h6 class="text-xs font-bold text-emerald-400 uppercase tracking-widest border-b border-emerald-500/20 pb-2 italic">示例代码</h6>
-                <div class="bg-black/40 rounded-xl p-4 font-mono text-xs text-emerald-400/90 border border-emerald-500/10">
-                    <pre>import requests<br/>response = requests.get("http://your-api/algorithm/${alg.id}")<br/>print(response.json())</pre>
-                </div>
-            </div>
-        `;
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-    } catch (error) {
-        console.error(error);
-        alert('无法获取算法详情');
-    }
-}
-
-async function deleteAlgorithm(id, name) {
-    if (confirm(`确定要删除算法“${name}”吗？此操作不可恢复。`)) {
-        try {
-            const response = await fetch(`/api/algorithm/${id}`, { method: 'DELETE' });
-            if (response.ok) {
-                alert('删除成功');
-                loadAlgorithmList();  // 刷新列表
-            } else {
-                const err = await response.json();
-                alert(`删除失败：${err.detail || '未知错误'}`);
-            }
-        } catch (error) {
-            alert('网络错误');
-        }
-    }
 }
 
 // 渲染算法列表（接收算法数组）
@@ -629,7 +525,7 @@ function renderAlgorithmList(algorithms) {
     }
 
     container.innerHTML = algorithms.map(alg => `
-        <div class="glass-panel rounded-xl p-5 group hover:border-sky-500/50 transition-all" data-id="${alg.id}">
+        <div class="glass-panel rounded-xl p-5 group hover:border-sky-500/50 transition-all" data-uuid="${alg.uuid}">
             <div class="flex justify-between items-start">
                 <div class="flex gap-4">
                     <div class="w-16 h-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
@@ -639,30 +535,195 @@ function renderAlgorithmList(algorithms) {
                     </div>
                     <div>
                         <div class="flex items-center gap-3">
-                            <h5 class="text-lg font-bold">${escapeHtml(alg.name)}</h5>
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">${escapeHtml(alg.version)}</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] ${alg.algorithm_type === 'Deep Learning' ? 'bg-sky-500/10 text-sky-400' : 'bg-indigo-500/10 text-indigo-400'} border">
-                                ${alg.algorithm_type === 'Deep Learning' ? '学习方法' : '传统方法'}
-                            </span>
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border">已注册</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-400 border">版本数：${alg.versions.length}</span>
+                            <!-- 【修改2】数据库字段映射：name 变 algorithmName -->
+                            <h5 class="text-lg font-bold">${escapeHtml(alg.algorithmName)}</h5>
+                            <!-- 【修改3】由于目前只有算法，且算法没有直接版本号（版本在另一张表），此处使用 algorithmCode 展示标识 -->
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">编码: ${escapeHtml(alg.algorithmCode)}</span>
+                            <!-- 【修改4】数据库字段映射：algorithm_type 变 algorithmType -->
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20">${escapeHtml(alg.algorithmType || '未知类型')}</span>
+                            <!-- 【修改5】映射 status 字段 -->
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${alg.status === 'ENABLED' ? '已启用' : '已注册'}</span>
                         </div>
                         <p class="text-sm text-slate-500 mt-1 max-w-2xl">${escapeHtml(alg.description) || '暂无描述'}</p>
                         <div class="flex items-center gap-4 mt-3 text-[11px] text-slate-500 italic">
-                            <span class="flex items-center gap-1">📋 ID: ${alg.id}</span>
-                            <span class="flex items-center gap-1">🕒 更新于: ${new Date(alg.updated_at).toLocaleDateString()}</span>
-                            <span class="flex items-center gap-1 text-sky-400">⭐ 收藏(0)</span>
+                            <!-- 【修改6】ID 换为 UUID -->
+                            <span class="flex items-center gap-1">📋 UUID: ${alg.uuid}</span>
+                            <span class="flex items-center gap-1">🕒 更新于: ${alg.updatedAt ? new Date(alg.updatedAt).toLocaleDateString() : '未知'}</span>
                         </div>
                     </div>
                 </div>
                 <div class="flex flex-col gap-2">
-                    <button class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs transition-colors" onclick="showAlgorithmDetail(${alg.id})">查看详情</button>
-                    <button class="px-4 py-1.5 rounded-lg bg-sky-900/30 text-sky-400 hover:bg-sky-900/50 border border-sky-700/50 text-xs transition-colors" onclick="editAlgorithm(${alg.id})">在线修改</button>
-                    <button class="px-4 py-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 text-xs transition-colors" onclick="deleteAlgorithm(${alg.id}, '${escapeHtml(alg.name)}')">删除</button>
+                    <!-- 【修改7】核心修正：因为 UUID 是字符串类型，传参时必须加上单引号 '${alg.uuid}'，否则JS会报错！ -->
+                    <button class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs transition-colors" onclick="showAlgorithmDetail('${alg.uuid}')">查看详情</button>
+                    <button class="px-4 py-1.5 rounded-lg bg-sky-900/30 text-sky-400 hover:bg-sky-900/50 border border-sky-700/50 text-xs transition-colors" onclick="editAlgorithm('${alg.uuid}')">在线修改</button>
+                    <button class="px-4 py-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 text-xs transition-colors" onclick="deleteAlgorithm('${alg.uuid}', '${escapeHtml(alg.algorithmName)}')">删除</button>
                 </div>
             </div>
         </div>
     `).join('');
+}
+
+// 显示算法详情
+async function showAlgorithmDetail(uuid) {
+    try {
+        // 1. 发起请求获取算法详情
+        const algoResponse = await fetch(`${API_BASE_URL}/api/v1/algorithms/${uuid}`);
+        if (!algoResponse.ok) throw new Error('获取算法详情失败');
+        
+        const algoResData = await algoResponse.json();
+        const alg = algoResData.data || algoResData; 
+
+        // 2. 发起请求获取该算法的版本列表 (新增逻辑)
+        let versions =[];
+        try {
+            const versionsResponse = await fetch(`${API_BASE_URL}/api/v1/algorithms/${uuid}/versions`);
+            if (versionsResponse.ok) {
+                const versionsResData = await versionsResponse.json();
+                // 适配你的返回结构 ok({"items": items, "total": len(items)})
+                versions = (versionsResData.data && versionsResData.data.items) ? versionsResData.data.items :[];
+            }
+        } catch (vErr) {
+            console.error("获取版本列表报错, 但不影响详情展示:", vErr);
+        }
+
+        // 3. 动态生成版本列表的 HTML
+        let versionsHtml = '';
+        if (versions.length === 0) {
+            versionsHtml = `<div class="text-slate-500 text-xs italic text-center p-4 bg-slate-900/30 rounded border border-slate-800">暂无关联的版本</div>`;
+        } else {
+            versionsHtml = versions.map(v => `
+                <div class="bg-slate-900/50 rounded-lg p-3 flex justify-between items-center text-sm border border-slate-800 hover:border-indigo-500/50 transition-colors">
+                    <div class="flex flex-col">
+                        <div>
+                            <span class="text-sky-400 font-bold">${escapeHtml(v.version)}</span>
+                            <span class="text-slate-400 text-xs ml-2">${escapeHtml(v.versionName || '')}</span>
+                        </div>
+                        <span class="text-slate-500 text-[10px] mt-1">镜像: ${escapeHtml(v.localImageName || '--')}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 border border-slate-700">${v.publishStatus || 'DRAFT'}</span>
+                        <button onclick="showVersionDetail('${v.uuid}')" class="px-3 py-1.5 bg-indigo-900/30 border border-indigo-700/50 rounded text-xs text-indigo-300 hover:text-white hover:bg-indigo-600 transition-all">版本详情</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 4. 渲染弹窗内容
+        const modal = document.getElementById('modal-detail');
+        if (!modal) {
+            alert("找不到详情弹窗DOM(id='modal-detail')");
+            return;
+        }
+
+        modal.querySelector('.font-mono').innerText = `UUID: ${alg.uuid}`;
+        const detailBody = modal.querySelector('.flex-1.overflow-y-auto');
+        
+        detailBody.innerHTML = `
+            <div class="grid grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <h6 class="text-xs font-bold text-sky-400 uppercase tracking-widest border-b border-sky-500/20 pb-2 italic">基础元数据</h6>
+                    <div class="space-y-2 text-sm">
+                        <p><span class="text-slate-400 inline-block w-20">名称：</span> ${escapeHtml(alg.algorithmName)}</p>
+                        <p><span class="text-slate-400 inline-block w-20">唯一编码：</span> ${escapeHtml(alg.algorithmCode)}</p>
+                        <p><span class="text-slate-400 inline-block w-20">算法类型：</span> ${escapeHtml(alg.algorithmType)}</p>
+                        <p><span class="text-slate-400 inline-block w-20">当前状态：</span> ${alg.status === 'ENABLED' ? '✅ 已启用' : alg.status}</p>
+                        <p><span class="text-slate-400 inline-block w-20">运行环境：</span> ${escapeHtml(alg.runtimeType) || '未指定'}</p>
+                        <p><span class="text-slate-400 inline-block w-20">开发语言：</span> ${escapeHtml(alg.languageType) || '未指定'}</p>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <h6 class="text-xs font-bold text-indigo-400 uppercase tracking-widest border-b border-indigo-500/20 pb-2 italic">路径与配置</h6>
+                    <div class="space-y-2 text-sm">
+                        <div class="bg-slate-900/50 p-2 rounded border border-slate-800">
+                            <span class="text-slate-500 text-xs block mb-1">外置代码路径 (codePath)</span>
+                            <span class="text-sky-300 font-mono text-xs break-all">${escapeHtml(alg.codePath) || '--'}</span>
+                        </div>
+                        <div class="bg-slate-900/50 p-2 rounded border border-slate-800">
+                            <span class="text-slate-500 text-xs block mb-1">外置配置路径 (configPath)</span>
+                            <span class="text-indigo-300 font-mono text-xs break-all">${escapeHtml(alg.configPath) || '--'}</span>
+                        </div>
+                        <p class="mt-2 text-xs text-slate-400"><span class="text-slate-500">创建时间：</span> ${alg.createdAt ? new Date(alg.createdAt).toLocaleString() : '--'}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 【替换】这里换成了真实拉取渲染的版本列表 -->
+            <div class="mt-6 space-y-4">
+                <div class="flex items-center justify-between border-b border-purple-500/20 pb-2">
+                    <h6 class="text-xs font-bold text-purple-400 uppercase tracking-widest italic">关联版本历史 (${versions.length})</h6>
+                </div>
+                <div class="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    ${versionsHtml}
+                </div>
+            </div>
+
+            <div class="mt-6 space-y-4">
+                <h6 class="text-xs font-bold text-emerald-400 uppercase tracking-widest border-b border-emerald-500/20 pb-2 italic">API 调用示例代码</h6>
+                <div class="bg-black/40 rounded-xl p-4 font-mono text-xs text-emerald-400/90 border border-emerald-500/10">
+                    <pre>import requests\n\n# 获取算法及版本列表\nurl = "${API_BASE_URL}/api/v1/algorithms/${alg.uuid}/versions"\nresponse = requests.get(url)\nprint(response.json())</pre>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    } catch (error) {
+        console.error(error);
+        alert('无法获取算法详情，请检查网络或后端服务。');
+    }
+}
+
+// 【新增】获取单个版本详细信息的函数
+async function showVersionDetail(versionUuid) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/versions/${versionUuid}`);
+        if (!response.ok) throw new Error("获取版本详情失败");
+        
+        const resData = await response.json();
+        const version = resData.data || resData;
+
+        // 为了 Demo 方便展示，我们将获取到的版本详细字段拼接成字符串，用系统自带弹窗显示。
+        // 如果后续你有设计“版本详情弹窗”的 HTML，可以把这里替换为渲染 HTML 的逻辑。
+        const info = `【版本详细信息】\n
+版本号 (version): ${version.version || '--'}
+版本名称 (versionName): ${version.versionName || '--'}
+所属算法UUID: ${version.algorithmUuid || '--'}
+--------------------------------------
+本地镜像 (localImageName): ${version.localImageName || '--'}
+运行入口 (entrypoint): ${version.entrypoint || '未配置'}
+拉取策略 (imagePullPolicy): ${version.imagePullPolicy || '--'}
+镜像大小 (imageSize): ${version.imageSize ? (version.imageSize / 1024 / 1024).toFixed(2) + ' MB' : '未知'}
+--------------------------------------
+变更说明 (changelog): 
+${version.changelog || '无'}
+--------------------------------------
+创建时间: ${version.createdAt ? new Date(version.createdAt).toLocaleString() : '--'}`;
+
+        alert(info);
+        
+    } catch (error) {
+        console.error(error);
+        alert("获取版本详情失败，请检查网络或确认 UUID 是否正确！");
+    }
+}
+
+// 删除算法
+async function deleteAlgorithm(uuid, name) {
+    if (confirm(`确定要删除算法“${name}”吗？此操作不可恢复。`)) {
+        try {
+            // 【修改10】修改删除 API 路径
+            const response = await fetch(`${API_BASE_URL}/api/v1/algorithms/${uuid}`, { method: 'DELETE' });
+            
+            if (response.ok) {
+                alert('删除成功');
+                loadAlgorithmList();  // 刷新列表
+            } else {
+                const err = await response.json();
+                alert(`删除失败：${err.message || err.detail || '未知错误'}`);
+            }
+        } catch (error) {
+            alert('网络错误，请确认删除接口是否存在。');
+        }
+    }
 }
 
 //镜像文件上传函数
@@ -757,47 +818,119 @@ function editAlgorithm(id) {
     loadAlgorithmToEditor(id);
 }
 
+/**
+ * 搜索算法列表
+ */
 async function searchAlgorithms() {
     const keyword = document.getElementById('search-keyword').value.trim();
-    const algorithmType = document.getElementById('search-type').value; // 可能为 "Deep Learning", "Machine Learning" 或 ""
+    const algorithmType = document.getElementById('search-type').value;
 
-    // 构建 URL 参数
-    let url = '/api/algorithms/search?';
-    const params = [];
-    if (keyword) params.push(`keyword=${encodeURIComponent(keyword)}`);
-    if (algorithmType) params.push(`algorithm_type=${encodeURIComponent(algorithmType)}`);
-    url += params.join('&');
+    // 【修改1】复用后端的 GET /api/v1/algorithms 接口，同时附带分页参数
+    let url = `${API_BASE_URL}/api/v1/algorithms?pageNum=1&pageSize=100`;
+    
+    // 【修改2】注意后端的字段名是 algorithmType（驼峰）
+    if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
+    if (algorithmType) url += `&algorithmType=${encodeURIComponent(algorithmType)}`;
+
+    const container = document.querySelector('#page-query .grid.grid-cols-1');
+    
+    // 搜索时展示加载动画
+    container.innerHTML = `
+        <div class="glass-panel rounded-xl p-16 flex flex-col items-center justify-center text-slate-400 space-y-4">
+            <svg class="animate-spin h-10 w-10 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span class="text-sm">正在检索中...</span>
+        </div>
+    `;
 
     try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error('搜索失败');
-        const algorithms = await response.json();
+        if (!response.ok) throw new Error('搜索请求失败');
+        
+        const resData = await response.json();
+        const algorithms = (resData.data && resData.data.items) ? resData.data.items :[];
+        
+        // 调用之前写好的渲染函数
         renderAlgorithmList(algorithms);
     } catch (error) {
         console.error(error);
-        alert('搜索失败，请稍后重试');
+        container.innerHTML = '<div class="glass-panel rounded-xl p-10 text-center text-red-400">搜索失败，请检查后端服务是否正常。</div>';
     }
 }
 
-//加载算法文件内容到编辑器
-async function loadAlgorithmToEditor(id) {
+/**
+ * 加载算法内容到编辑器 (Demo Mock 版)
+ */
+async function loadAlgorithmToEditor(uuid) {
     try {
-        const response = await fetch(`/api/algorithm/${id}/file-content`);
+        // 【修改3】由于后端没有读取文件的接口，我们请求算法详情接口获取 metadata
+        const response = await fetch(`${API_BASE_URL}/api/v1/algorithms/${uuid}`);
         if (!response.ok) {
             const err = await response.json();
-            alert(`无法加载文件内容：${err.detail}`);
+            alert(`无法加载算法详情：${err.detail || err.message}`);
             return;
         }
-        const data = await response.json();
-        // 填充编辑器
-        document.getElementById('code-editor').value = data.content;
-        document.getElementById('editor-filename').innerText = data.filename;
-        document.getElementById('editor-algo-name').innerText = `${data.algorithm_name} (v${data.algorithm_version})`;
-        // 保存当前编辑的算法ID到全局变量，用于保存
-        window.currentEditAlgorithmId = id;
+        
+        const resData = await response.json();
+        const alg = resData.data || resData;
+
+        // 【修改4】使用算法数据，动态生成一段逼真的 Demo Python 代码
+        const mockCode = `"""
+@Algorithm : ${alg.algorithmName}
+@Code      : ${alg.algorithmCode}
+@Type      : ${alg.algorithmType}
+@Path      : ${alg.codePath || '/app/main.py'}
+"""
+
+import json
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
+def init_model():
+    logging.info(f"Initializing {alg.algorithmType} model: ${alg.algorithmName}...")
+    # 加载配置: ${alg.configPath || '未配置'}
+    return True
+
+def process_data(input_payload):
+    """
+    核心执行逻辑
+    """
+    logging.info("Start processing...")
+    # TODO: 实现具体的业务逻辑
+    
+    return {
+        "status": "success",
+        "algorithm_uuid": "${alg.uuid}",
+        "result": "Demo output"
+    }
+
+if __name__ == "__main__":
+    init_model()
+    print(process_data({"test": "data"}))
+`;
+
+        // 填充代码编辑器
+        const editor = document.getElementById('code-editor');
+        if (editor) editor.value = mockCode;
+        
+        // 提取文件名 (例如从 /opt/algo/main.py 提取出 main.py)
+        const fileName = alg.codePath ? alg.codePath.split('/').pop() : 'main.py';
+        
+        const filenameElem = document.getElementById('editor-filename');
+        if (filenameElem) filenameElem.innerText = fileName;
+        
+        const algonameElem = document.getElementById('editor-algo-name');
+        if (algonameElem) algonameElem.innerText = `${alg.algorithmName}[${alg.algorithmCode}]`;
+
+        // 保存当前编辑的算法UUID到全局变量，用于保存
+        window.currentEditAlgorithmId = uuid;
+        
+        // 如果页面有跳转到编辑器 Tab 的方法，可以在这里调用，例如：
+        // switchPage('editor'); 
+
     } catch (error) {
         console.error(error);
-        alert('加载文件内容失败');
+        alert('加载算法到编辑器失败，请检查网络');
     }
 }
 
