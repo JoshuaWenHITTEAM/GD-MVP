@@ -1,3 +1,6 @@
+// 后端 数据库api端口 根据真实情况进行修改
+const API_BASE_URL = 'http://127.0.0.1:8000';
+
 // 页面切换逻辑
 function switchPage(pageId) {
     // 隐藏所有页面
@@ -202,7 +205,7 @@ async function loadAlgorithms(preselectUuid = null) {
 
     try {
         // 请求你提供的 GET API。Demo 演示中为了拿到足够多的数据，pageSize 设为 100
-        const response = await fetch('/api/v1/algorithms?pageNum=1&pageSize=100');
+        const response = await fetch(`${API_BASE_URL}/api/v1/algorithms?pageNum=1&pageSize=100`);
         const resData = await response.json();
 
         // 假设分页返回的格式为 { code: 200, data: { items: [...] } }
@@ -270,6 +273,7 @@ function handleFileSelect(inputElem, targetInputId, mockPrefix) {
     if (inputElem.files && inputElem.files.length > 0) {
         const fileName = inputElem.files[0].name;
         // 拼接成类似真实的后端路径：/opt/algorithms/code/xxxx.py
+        // 等待后端给出具体存放代码路径后修改为真正的前缀
         document.getElementById(targetInputId).value = mockPrefix + fileName;
     }
 }
@@ -309,7 +313,7 @@ async function submitAlgorithm() {
         btn.innerHTML = '注册中...';
         btn.disabled = true;
 
-        const response = await fetch('/api/v1/algorithms', {
+        const response = await fetch(`${API_BASE_URL}/api/v1/algorithms`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -419,7 +423,7 @@ async function submitVersion() {
         btn.innerText = '提交中...';
         btn.disabled = true;
 
-        const response = await fetch(`/api/v1/algorithms/${targetUuid}/versions`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/algorithms/${targetUuid}/versions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
