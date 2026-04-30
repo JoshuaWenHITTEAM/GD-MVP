@@ -19,4 +19,4 @@ async def read_p2(request: Request):
 
 @router.get("/reasoning")
 async def read_p3(request: Request):
-    return templates.TemplateResponse(request, "p3_reasoning.html")
+    return templates.TemplateResponse(request, "p3_reasoning_new.html")

@@ -13,6 +13,7 @@ function switchPage(pageId) {
         'dashboard': '系统实时概览',
         'samples': '图像/视频样本管理',
         'training': '模型自学习训练舱',
+        'vision': '视觉算法推理',
         'query': '算法资产库检索',
         'register': '生产算法入库注册',
         'editor': '代码热更新与在线调试',
@@ -30,6 +31,17 @@ function switchPage(pageId) {
     }
 
     if (pageId === 'dashboard') initCharts();
+    if (pageId === 'vision') {
+        // 防止多次初始化
+        if (!window._visionInitialized) {
+            initVisionPage();
+            window._visionInitialized = true;
+        } else {
+            // 只需刷新资产列表（可选）
+            loadVisionAssets();
+            loadVisionAlgorithms();
+        }
+    }
 }
 
 function startTraining() {
@@ -979,3 +991,512 @@ async function saveHotUpdate() {
         alert('网络错误，请稍后重试');
     }
 }
+// ==================== 视觉算法推理模块 ====================
+// 全局变量
+let visionAlgorithms = [];
+let selectedAssetUuids = [];   // 存储选中的资产UUID数组
+let allVisionAssets = [];      // 缓存所有资产数据，避免重复请求
+
+async function uploadVisionAsset() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            alert('请选择图片文件（jpg/png等）');
+            return;
+        }
+        let datasetName = prompt('请输入数据集名称（用于分类）:', 'vision_dataset');
+        if (!datasetName) {
+            alert('数据集名称不能为空');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('media_type', 'image');
+        formData.append('dataset_name', datasetName);
+        const uploadBtn = document.getElementById('vision-upload-btn');
+        const originalText = uploadBtn.innerHTML;
+        uploadBtn.innerHTML = '<span class="iconify animate-spin" data-icon="material-symbols:sync"></span> 上传中...';
+        uploadBtn.disabled = true;
+        try {
+            const response = await fetch('/api/assets/upload', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (response.ok) {
+                alert(`✅ 上传成功！\n文件: ${result.original_name}\nUUID: ${result.uuid}`);
+                loadVisionAssets();
+            } else {
+                alert(`❌ 上传失败：${result.detail || '未知错误'}`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('网络错误，上传失败');
+        } finally {
+            uploadBtn.innerHTML = originalText;
+            uploadBtn.disabled = false;
+        }
+    };
+    fileInput.click();
+}
+
+async function loadVisionAssets() {
+    const container = document.getElementById('vision-asset-carousel');
+    if (!container) return;
+    container.innerHTML = '<div class="text-center text-slate-500 w-full py-8">加载资产中...</div>';
+    try {
+        const resp = await fetch('/api/assets?media_type=image&pageSize=100');
+        const data = await resp.json();
+        const assets = data.items || [];
+        allVisionAssets = assets;   // 缓存
+        if (assets.length === 0) {
+            container.innerHTML = '<div class="text-center text-slate-500 w-full py-8">暂无图像资产，请点击「上传图片」添加。</div>';
+            return;
+        }
+
+        // 生成卡片 HTML
+        container.innerHTML = assets.map(asset => `
+            <div class="vision-asset-card flex-shrink-0 w-40 bg-slate-800/60 rounded-lg overflow-hidden border-2 cursor-pointer transition-all"
+                 data-uuid="${asset.uuid}" data-name="${escapeHtml(asset.original_name)}">
+                <div class="aspect-square bg-slate-900 relative">
+                    <div class="loading-placeholder absolute inset-0 flex items-center justify-center text-slate-500">
+                        <span class="iconify animate-spin text-2xl" data-icon="material-symbols:sync"></span>
+                    </div>
+                    <img class="preview-img hidden w-full h-full object-cover" data-uuid="${asset.uuid}"
+                         onerror="this.onerror=null; this.classList.add('hidden'); this.parentElement.querySelector('.loading-placeholder').innerHTML = '<span class=\\'text-xs text-red-400\\'>加载失败</span>';">
+                    <div class="selected-mark absolute top-1 right-1 hidden">
+                        <span class="iconify text-sky-400 text-xl" data-icon="material-symbols:check-circle"></span>
+                    </div>
+                </div>
+                <div class="p-2 truncate text-center">
+                    <p class="text-xs font-medium truncate" title="${escapeHtml(asset.original_name)}">${escapeHtml(asset.original_name)}</p>
+                    <p class="text-[10px] text-slate-400">${Math.round(asset.file_size/1024)}KB</p>
+                </div>
+            </div>
+        `).join('');
+
+        // 异步加载图片预览
+        const previewImages = container.querySelectorAll('.preview-img');
+        previewImages.forEach(img => {
+            const uuid = img.getAttribute('data-uuid');
+            const card = img.closest('.vision-asset-card');
+            const loadingDiv = card?.querySelector('.loading-placeholder');
+            if (!card || !loadingDiv) return;
+            fetch(`/api/assets/${uuid}/preview-url`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.url) {
+                        img.src = data.url;
+                        img.classList.remove('hidden');
+                        loadingDiv.classList.add('hidden');
+                    } else {
+                        throw new Error('无效的预览URL');
+                    }
+                })
+                .catch(err => {
+                    console.error(`加载图片 ${uuid} 失败:`, err);
+                    if (loadingDiv) loadingDiv.innerHTML = '<span class="text-xs text-red-400">加载失败</span>';
+                });
+        });
+
+        // 绑定点击事件（多选）
+        document.querySelectorAll('.vision-asset-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const uuid = card.getAttribute('data-uuid');
+                if (!uuid) return;
+                // 切换选中状态
+                const index = selectedAssetUuids.indexOf(uuid);
+                if (index === -1) {
+                    selectedAssetUuids.push(uuid);
+                } else {
+                    selectedAssetUuids.splice(index, 1);
+                }
+                // 更新当前卡片的高亮样式
+                updateCardHighlight(card, uuid);
+                // 更新下方预览区
+                updateSelectedAssetsPreview();
+            });
+        });
+
+        // 初始化高亮（根据已选中的UUID）
+        document.querySelectorAll('.vision-asset-card').forEach(card => {
+            const uuid = card.getAttribute('data-uuid');
+            updateCardHighlight(card, uuid);
+        });
+        // 刷新预览区
+        updateSelectedAssetsPreview();
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<div class="text-center text-red-400 w-full py-8">加载资产失败，请检查后端服务</div>';
+    }
+}
+
+// 更新单个卡片的高亮样式
+function updateCardHighlight(card, uuid) {
+    if (selectedAssetUuids.includes(uuid)) {
+        card.classList.add('border-sky-500', 'shadow-lg', 'shadow-sky-500/20');
+        const mark = card.querySelector('.selected-mark');
+        if (mark) mark.classList.remove('hidden');
+    } else {
+        card.classList.remove('border-sky-500', 'shadow-lg', 'shadow-sky-500/20');
+        const mark = card.querySelector('.selected-mark');
+        if (mark) mark.classList.add('hidden');
+    }
+}
+
+// 更新下方预览区（显示选中的资产缩略图）
+async function updateSelectedAssetsPreview() {
+    const container = document.getElementById('selected-assets-container');
+    if (!container) return;
+    if (selectedAssetUuids.length === 0) {
+        container.innerHTML = '<div class="text-xs text-slate-500 w-full text-center">暂无选中资产，请点击上方图片选择</div>';
+        return;
+    }
+    // 根据选中的UUID找到对应的资产信息（从 allVisionAssets 缓存中获取）
+    const selectedAssets = allVisionAssets.filter(asset => selectedAssetUuids.includes(asset.uuid));
+    // 生成预览卡片（小尺寸），每个带删除按钮
+    container.innerHTML = selectedAssets.map(asset => `
+        <div class="selected-asset-item relative w-20 h-20 bg-slate-800 rounded overflow-hidden border border-slate-600 group" data-uuid="${asset.uuid}">
+            <div class="loading-placeholder-small absolute inset-0 flex items-center justify-center text-slate-500">
+                <span class="iconify animate-spin text-sm" data-icon="material-symbols:sync"></span>
+            </div>
+            <img class="preview-img-small hidden w-full h-full object-cover" data-uuid="${asset.uuid}"
+                 onerror="this.onerror=null; this.classList.add('hidden'); this.parentElement.querySelector('.loading-placeholder-small').innerHTML = '<span class=\\'text-red-400 text-[8px]\\'>错误</span>';">
+            <button class="remove-selected absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" data-uuid="${asset.uuid}">×</button>
+        </div>
+    `).join('');
+
+    // 为每个预览小图加载真正的图片
+    const smallImgs = container.querySelectorAll('.preview-img-small');
+    smallImgs.forEach(img => {
+        const uuid = img.getAttribute('data-uuid');
+        const parent = img.closest('.selected-asset-item');
+        const loadingDiv = parent?.querySelector('.loading-placeholder-small');
+        if (!parent || !loadingDiv) return;
+        fetch(`/api/assets/${uuid}/preview-url`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.url) {
+                    img.src = data.url;
+                    img.classList.remove('hidden');
+                    loadingDiv.classList.add('hidden');
+                } else {
+                    throw new Error('无效URL');
+                }
+            })
+            .catch(err => {
+                console.error(`加载预览小图 ${uuid} 失败`, err);
+                if (loadingDiv) loadingDiv.innerHTML = '<span class="text-red-400 text-[8px]">失败</span>';
+            });
+    });
+
+    // 绑定删除按钮事件
+    container.querySelectorAll('.remove-selected').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const uuid = btn.getAttribute('data-uuid');
+            if (uuid) {
+                const index = selectedAssetUuids.indexOf(uuid);
+                if (index !== -1) selectedAssetUuids.splice(index, 1);
+                // 更新原卡片高亮
+                const originalCard = document.querySelector(`.vision-asset-card[data-uuid="${uuid}"]`);
+                if (originalCard) updateCardHighlight(originalCard, uuid);
+                // 刷新预览区
+                updateSelectedAssetsPreview();
+            }
+        });
+    });
+}
+//async function loadVisionAssets() {
+//    const container = document.getElementById('vision-asset-carousel');
+//    if (!container) return;
+//    container.innerHTML = '<div class="text-center text-slate-500 w-full py-8">加载资产中...</div>';
+//    try {
+//        const resp = await fetch('/api/assets?media_type=image&pageSize=100');
+//        const data = await resp.json();
+//        const assets = data.items || [];
+//        if (assets.length === 0) {
+//            container.innerHTML = '<div class="text-center text-slate-500 w-full py-8">暂无图像资产，请点击「上传图片」添加。</div>';
+//            return;
+//        }
+//        container.innerHTML = assets.map(asset => `
+//            <div class="vision-asset-card flex-shrink-0 w-40 bg-slate-800/60 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${selectedAssetUuid === asset.uuid ? 'border-sky-500 shadow-lg shadow-sky-500/20' : 'border-slate-700 hover:border-slate-500'}"
+//                 data-uuid="${asset.uuid}" data-name="${escapeHtml(asset.original_name)}">
+//                <div class="aspect-square bg-slate-900 relative">
+//                    <img src="/api/assets/${asset.uuid}/preview-url" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/160x160?text=Error'">
+//                    ${selectedAssetUuid === asset.uuid ? '<div class="absolute top-1 right-1"><span class="iconify text-sky-400 text-xl" data-icon="material-symbols:check-circle"></span></div>' : ''}
+//                </div>
+//                <div class="p-2 truncate text-center">
+//                    <p class="text-xs font-medium truncate" title="${escapeHtml(asset.original_name)}">${escapeHtml(asset.original_name)}</p>
+//                    <p class="text-[10px] text-slate-400">${Math.round(asset.file_size/1024)}KB</p>
+//                </div>
+//            </div>
+//        `).join('');
+//        //选中卡片高亮
+//        document.querySelectorAll('.vision-asset-card').forEach(card => {
+//            card.addEventListener('click', (e) => {
+//                e.stopPropagation();
+//                const uuid = card.getAttribute('data-uuid');
+//                if (uuid) {
+//                    selectedAssetUuid = uuid;
+//                    loadVisionAssets(); // 重新渲染以高亮
+//                }
+//            });
+//        });
+//    } catch (err) {
+//        console.error(err);
+//        container.innerHTML = '<div class="text-center text-red-400 w-full py-8">加载资产失败，请检查后端服务</div>';
+//    }
+//}
+
+async function loadVisionAlgorithms() {
+    try {
+        const resp = await fetch('/api/algorithms');
+        if (!resp.ok) throw new Error('加载算法失败');
+        const algorithms = await resp.json();
+        visionAlgorithms = algorithms;
+        const select = document.getElementById('vision-algorithm-select');
+        if (!select) return;
+        select.innerHTML = '<option value="">-- 请选择算法 --</option>' +
+            algorithms.map(alg => `<option value="${alg.id}">${escapeHtml(alg.name)} (${escapeHtml(alg.version)})</option>`).join('');
+    } catch (err) {
+        console.error(err);
+        const select = document.getElementById('vision-algorithm-select');
+        if (select) select.innerHTML = '<option value="">加载算法失败</option>';
+    }
+}
+
+//推理启动
+//async function runVisionInference() {
+//    const algorithmId = document.getElementById('vision-algorithm-select').value;
+//    if (!algorithmId) {
+//        alert('请先选择算法');
+//        return;
+//    }
+//    if (!selectedAssetUuid) {
+//        alert('请先点击选择一个资产');
+//        return;
+//    }
+//    const resultArea = document.getElementById('vision-result-area');
+//    const runBtn = document.getElementById('vision-run-btn');
+//    resultArea.innerHTML = '<div class="text-sky-400 flex items-center gap-2"><span class="iconify animate-spin" data-icon="material-symbols:sync"></span> 推理中，请稍候...</div>';
+//    runBtn.disabled = true;
+//    runBtn.classList.add('opacity-50');
+//    try {
+//        const response = await fetch('/api/v1/vision/inference', {   //调用/api/v1/vision/inference
+//            method: 'POST',
+//            headers: { 'Content-Type': 'application/json' },
+//            body: JSON.stringify({
+//                asset_uuid: selectedAssetUuid,
+//                algorithm_id: parseInt(algorithmId)
+//            })
+//        });
+//        const data = await response.json();
+//        if (response.ok && data.success) {
+//            resultArea.innerHTML = `<pre class="text-emerald-300 text-sm">${JSON.stringify(data.result, null, 2)}</pre>`;
+//        } else {
+//            resultArea.innerHTML = `<div class="text-red-400">推理失败：${data.message || '未知错误'}</div>`;
+//        }
+//    } catch (err) {
+//        console.error(err);
+//        resultArea.innerHTML = '<div class="text-red-400">网络错误，请检查后端服务</div>';
+//    } finally {
+//        runBtn.disabled = false;
+//        runBtn.classList.remove('opacity-50');
+//    }
+//}
+async function runVisionInference() {
+    const algorithmId = document.getElementById('vision-algorithm-select').value;
+    if (!algorithmId) {
+        alert('请先选择算法');
+        return;
+    }
+    if (selectedAssetUuids.length === 0) {
+        alert('请至少选择一个资产');
+        return;
+    }
+
+    const resultArea = document.getElementById('vision-result-area');
+    const runBtn = document.getElementById('vision-run-btn');
+    resultArea.innerHTML = '<div class="text-sky-400 flex items-center gap-2"><span class="iconify animate-spin" data-icon="material-symbols:sync"></span> 推理中，请稍候...</div>';
+    runBtn.disabled = true;
+    runBtn.classList.add('opacity-50');
+
+    // 存储所有结果
+    let allResults = [];
+    let hasError = false;
+
+    for (let i = 0; i < selectedAssetUuids.length; i++) {
+        const assetUuid = selectedAssetUuids[i];
+        try {
+            const response = await fetch('/api/v1/vision/inference', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    asset_uuid: assetUuid,
+                    algorithm_id: parseInt(algorithmId)
+                })
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                allResults.push({
+                    asset_uuid: assetUuid,
+                    result: data.result,
+                    success: true
+                });
+            } else {
+                allResults.push({
+                    asset_uuid: assetUuid,
+                    error: data.message || '推理失败',
+                    success: false
+                });
+                hasError = true;
+            }
+        } catch (err) {
+            console.error(err);
+            allResults.push({
+                asset_uuid: assetUuid,
+                error: '网络错误',
+                success: false
+            });
+            hasError = true;
+        }
+        // 可选：实时更新结果展示（展示当前已完成的）
+        resultArea.innerHTML = `<pre class="text-emerald-300 text-sm">已完成 ${i+1}/${selectedAssetUuids.length}...\n${JSON.stringify(allResults, null, 2)}</pre>`;
+    }
+
+    // 最终展示完整结果
+    if (hasError) {
+        resultArea.innerHTML = `<pre class="text-yellow-300 text-sm">部分推理失败：\n${JSON.stringify(allResults, null, 2)}</pre>`;
+    } else {
+        resultArea.innerHTML = `<pre class="text-emerald-300 text-sm">全部推理完成：\n${JSON.stringify(allResults, null, 2)}</pre>`;
+    }
+    runBtn.disabled = false;
+    runBtn.classList.remove('opacity-50');
+}
+
+function initVisionPage() {
+    loadVisionAssets();
+    loadVisionAlgorithms();
+    const runBtn = document.getElementById('vision-run-btn');
+    if (runBtn) {
+        runBtn.removeEventListener('click', runVisionInference);
+        runBtn.addEventListener('click', runVisionInference);
+    }
+    const uploadBtn = document.getElementById('vision-upload-btn');
+    if (uploadBtn) {
+        uploadBtn.removeEventListener('click', uploadVisionAsset);
+        uploadBtn.addEventListener('click', uploadVisionAsset);
+    }
+}
+
+// ==================== 其他辅助函数 ====================
+function startTraining() {
+    const btn = event.target;
+    btn.innerHTML = '<span class="iconify animate-spin" data-icon="material-symbols:sync"></span> 训练初始化...';
+    btn.classList.add('opacity-50');
+    setTimeout(() => {
+        alert('训练任务下发成功！已在 K8s 集群分配 A100 GPU 资源。');
+        btn.innerHTML = '<span class="iconify" data-icon="material-symbols:play-arrow"></span> 重新开始训练';
+        btn.classList.remove('opacity-50');
+    }, 1500);
+}
+
+function toggleVectorSearch() {
+    alert('向量检索模式切换：已加载 pgvector 特征索引。');
+}
+
+function showDeleteConfirm(name) {
+    document.getElementById('del-name').innerText = name;
+    document.getElementById('modal-delete').classList.remove('hidden');
+}
+
+function showDetail() {
+    document.getElementById('modal-detail').classList.remove('hidden');
+}
+
+function openCompare() {
+    document.getElementById('modal-compare').classList.remove('hidden');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+}
+
+function saveCode() {
+    alert('代码保存中...\n系统正在同步镜像到服务器端 v2.4.2 [热更新模式]...');
+}
+
+function restoreRecord() {
+    alert('已成功将算法记录从 [回收站] 恢复至 [正式库]！');
+}
+
+// 时间刷新
+setInterval(() => {
+    const now = new Date();
+    const timeEl = document.getElementById('current-time');
+    if (timeEl) timeEl.innerText = now.toLocaleString();
+}, 1000);
+
+// ==================== DOM 加载完成后初始化 ====================
+window.onload = () => {
+    initCharts();
+    // 绑定文件上传按钮（算法注册）
+    const submitBtn = document.getElementById('submit-upload');
+    if (submitBtn) submitBtn.addEventListener('click', uploadAlgorithmFile);
+    const cancelBtn = document.getElementById('cancel-upload');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            resetForm();
+            currentAlgorithmId = null;
+            document.getElementById('algo-file').value = '';
+            alert('已取消注册');
+        });
+    }
+    const fileInput = document.getElementById('algo-file');
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            const statusSpan = document.getElementById('file-status');
+            if (e.target.files.length > 0) {
+                statusSpan.textContent = `已选择：${e.target.files[0].name}`;
+                statusSpan.classList.remove('text-slate-400');
+                statusSpan.classList.add('text-sky-400');
+            } else {
+                statusSpan.textContent = '未选择文件';
+                statusSpan.classList.add('text-slate-400');
+                statusSpan.classList.remove('text-sky-400');
+            }
+        });
+    }
+    const saveBtn = document.getElementById('save-hot-update');
+    if (saveBtn) saveBtn.addEventListener('click', saveHotUpdate);
+    const rollbackBtn = document.getElementById('rollback-version');
+    if (rollbackBtn) rollbackBtn.addEventListener('click', showRollbackDialog);
+
+    // 样本库
+    const sampleUploadBtn = document.getElementById('upload-sample-btn');
+    if (sampleUploadBtn) {
+        sampleUploadBtn.removeEventListener('click', uploadSample);
+        sampleUploadBtn.addEventListener('click', uploadSample);
+    }
+    initSampleFilters();
+    if (!document.getElementById('page-samples').classList.contains('hidden')) {
+        loadSampleAssets();
+    }
+    // UUID 查询
+    initUuidSearch();
+
+    // 视觉推理按钮事件已在 initVisionPage 中绑定，但需在导航时调用
+    // 确保 nav-vision 按钮存在
+    const visionNav = document.getElementById('nav-vision');
+    if (visionNav && !visionNav.onclick) {
+        visionNav.onclick = () => switchPage('vision');
+    }
+    // 如果当前页是 vision 则初始化
+    if (document.getElementById('page-vision') && !document.getElementById('page-vision').classList.contains('hidden')) {
+        initVisionPage();
+        window._visionInitialized = true;
+    }
+};

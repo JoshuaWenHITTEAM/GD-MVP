@@ -12,7 +12,8 @@ import os
 import shutil
 from pathlib import Path
 import httpx
-
+from ..services.asset_service import asset_service
+from typing import Optional
 from frontend.app.services.job_service import job_service
 
 # 创建 APIRouter 实例，用于分组管理路由（例如 web 相关的路由）
@@ -23,7 +24,7 @@ async def test_api():
     return {"status": "success", "message": "API 接口已连通"}
 
 #========================================
-#           p1部分接口(已弃用)
+#           p1部分接口(部分弃用)
 #========================================
 """
 @router.post("/algorithm/register", response_model=AlgorithmResponse, tags=["算法管理"])
@@ -298,6 +299,53 @@ async def get_algorithm_file_content(algorithm_id: int, db: Session = Depends(ge
         "algorithm_version": algorithm.version
     }
 """
+# 获取算法的所有历史版本列表
+@router.get("/algorithm/{algorithm_id}/versions", tags=["算法管理"])
+async def get_algorithm_versions(algorithm_id: int, db: Session = Depends(get_db)):
+    """获取指定算法的所有历史版本（按创建时间倒序）"""
+    algorithm = db.query(AlgorithmModel).filter(AlgorithmModel.id == algorithm_id).first()
+    if not algorithm:
+        raise HTTPException(status_code=404, detail="算法不存在")
+    versions = db.query(AlgorithmVersionModel).filter(
+        AlgorithmVersionModel.algorithm_id == algorithm_id
+    ).order_by(AlgorithmVersionModel.created_at.desc()).all()
+    return [
+        {
+            "id": v.id,
+            "version_number": v.version_number,
+            "file_path": v.file_path,
+            "rule_used": v.rule_used,
+            "created_at": v.created_at.isoformat()
+        }
+        for v in versions
+    ]
+
+
+# 回滚到指定版本（直接更新当前算法指向的文件路径）
+@router.post("/algorithm/{algorithm_id}/rollback/{version_id}", tags=["算法管理"])
+async def rollback_to_version(algorithm_id: int, version_id: int, db: Session = Depends(get_db)):
+    """将算法的当前文件回滚到指定的历史版本"""
+    algorithm = db.query(AlgorithmModel).filter(AlgorithmModel.id == algorithm_id).first()
+    if not algorithm:
+        raise HTTPException(status_code=404, detail="算法不存在")
+    target_version = db.query(AlgorithmVersionModel).filter(
+        AlgorithmVersionModel.id == version_id,
+        AlgorithmVersionModel.algorithm_id == algorithm_id
+    ).first()
+    if not target_version:
+        raise HTTPException(status_code=404, detail="指定的版本不存在")
+
+    # 更新算法的当前文件路径
+    algorithm.file_path = target_version.file_path
+    algorithm.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(algorithm)
+    return {
+        "message": f"已成功回滚到版本 {target_version.version_number}",
+        "version": target_version.version_number,
+        "file_path": target_version.file_path
+    }
+
 #==================================
 #           p2部分接口
 #==================================

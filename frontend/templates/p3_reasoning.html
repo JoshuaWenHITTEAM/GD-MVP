@@ -20,7 +20,7 @@
                 <div class="flex items-center gap-8">
                     <div class="flex items-center gap-4">
                         <h2 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400"
-                            id="page-title">光电感知算法库子系统</h2>
+                            id="page-title">在线应用子系统</h2>
                         <div class="h-4 w-[1px] bg-slate-700"></div>
                     </div>
 
@@ -438,29 +438,6 @@
                             <i class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></i> 已保存到主镜像
                         </span>
                     </div>
-                    <div class="flex-1 code-editor p-4 text-xs overflow-y-auto">
-                        <pre><code>import torch
-import cv2
-
-def target_inference(frame):
-    # 初始化 YOLO 模型
-    model = torch.hub.load('ultralytics/yolov8', 'custom', path='weights/best_uav.pt')
-    
-    # 执行推理
-    results = model(frame)
-    
-    # 提取无人机坐标
-    detections = results.xyxy[0] 
-    
-    # 过滤置信度 &lt; 0.8 的目标
-    valid_targets = [d for d in detections if d[4] &gt; 0.8]
-    
-    return valid_targets, results.render()[0]
-
-# 在线调试实时运行
-if __name__ == "__main__":
-    print("[DEBUG] 正在测试传感器数据对齐...")</code></pre>
-                    </div>
                     <div class="p-4 bg-black/20 border-t border-white/10 flex justify-end gap-3">
                         <button
                             class="px-4 py-2 bg-red-600/30 border border-red-500 text-red-400 rounded text-xs hover:bg-red-500 hover:text-white"
@@ -473,6 +450,9 @@ if __name__ == "__main__":
             </div>
         </div>
     </div>
+    
+    <video id="mockVideoSource" src="/static/src/demo.mp4" loop muted autoplay playsinline style="display: none;"></video>
+
     <!-- 删除确认浮窗 -->
     <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] hidden" id="deleteConfirm">
         <div class="w-80 glass-panel border border-red-500/50 p-6 rounded-xl text-center">
