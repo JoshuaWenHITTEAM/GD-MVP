@@ -6,17 +6,25 @@ import (
 	"algo-container-manager/internal/k8s"
 	"algo-container-manager/internal/service"
 	"log"
+	"os"
 )
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
 func main() {
 
 	//初始化MySQL
 	err := db.InitMySQL(db.Config{
-		Host:     "127.0.0.1",
-		Port:     3307,
-		User:     "root",
-		Password: "123456",
-		DBName:   "algo_manager",
+		Host:     envOr("MYSQL_HOST", "127.0.0.1"),
+		Port:     3306,
+		User:     envOr("MYSQL_USER", "appuser"),
+		Password: os.Getenv("MYSQL_PASSWORD"),
+		DBName:   envOr("MYSQL_DB", "algo_manager"),
 	})
 	if err != nil {
 		log.Fatalf("database init err: %v", err)

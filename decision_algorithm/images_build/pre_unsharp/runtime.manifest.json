@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "runtime-manifest.v1",
+  "algorithmKey": "pre_unsharp",
+  "algorithmType": "preprocessing",
+  "composeFile": "compose.yaml",
+  "service": {
+    "containerName": "pre-unsharp-runtime-dev",
+    "host": "127.0.0.1",
+    "hostPort": 8006,
+    "healthPath": "/healthz",
+    "readyPath": "/ready",
+    "versionPath": "/version"
+  },
+  "invoke": {
+    "mode": "http",
+    "preferredInput": "url",
+    "urlEndpoint": {
+      "path": "/infer/url",
+      "method": "POST",
+      "contentType": "application/json",
+      "body": {
+        "model_name": "pre_unsharp",
+        "image_url": "string",
+        "return_image": true
+      }
+    },
+    "fileEndpoint": {
+      "path": "/infer/file",
+      "method": "POST",
+      "contentType": "multipart/form-data",
+      "formFields": {
+        "model_name": "pre_unsharp",
+        "image": "file",
+        "return_image": true
+      }
+    }
+  }
+}

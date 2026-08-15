@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -12,7 +13,6 @@ from db import (
     execute,
     fetch_all,
     fetch_one,
-    json_dumps,
     now_db,
     parse_deployment,
     to_db_datetime,
@@ -20,12 +20,10 @@ from db import (
 from models import (
     CreateAlgorithmRequest,
     CreateBuildRecordRequest,
-    CreateDeploymentRequest,
     CreateVersionRequest,
-    ScaleRequest,
+    SaveHotUpdateRequest,
     UpdateAlgorithmRequest,
     UpdateBuildRecordRequest,
-    UpdateDeploymentRequest,
     UpdateVersionRequest,
 )
 
@@ -54,6 +52,8 @@ VERSION_PUBLISH_TRANSITIONS: dict[str, set[str]] = {
     "PUBLISHED": {"PUBLISHED", "OFFLINE"},
     "OFFLINE": {"OFFLINE", "PUBLISHED"},
 }
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+IMAGES_BUILD_ROOT = PROJECT_ROOT / "decision_algorithm" / "images_build"
 
 
 def gen_uuid(prefix: str) -> str:
@@ -134,6 +134,11 @@ def ensure_version_can_be_deployed(version: dict[str, Any]) -> None:
     )
 
 
+def ensure_algorithm_paths_configured(algorithm: dict[str, Any]) -> None:
+    ensure(bool((algorithm.get("codePath") or "").strip()), 400, "algorithm codePath is required")
+    ensure(bool((algorithm.get("configPath") or "").strip()), 400, "algorithm configPath is required")
+
+
 def paginate(items: list[dict[str, Any]], page_num: int, page_size: int) -> dict[str, Any]:
     safe_page_num = max(page_num, 1)
     safe_page_size = max(page_size, 1)
@@ -155,6 +160,8 @@ def algorithm_summary(item: dict[str, Any]) -> dict[str, Any]:
         "algorithmType": item["algorithmType"],
         "framework": item["framework"],
         "runtimeType": item["runtimeType"],
+        "codePath": item["codePath"],
+        "configPath": item["configPath"],
         "status": item["status"],
         "updatedAt": item["updatedAt"],
     }
@@ -169,6 +176,8 @@ def algorithm_detail(item: dict[str, Any]) -> dict[str, Any]:
         "framework": item["framework"],
         "runtimeType": item["runtimeType"],
         "languageType": item["languageType"],
+        "codePath": item["codePath"],
+        "configPath": item["configPath"],
         "description": item["description"],
         "status": item["status"],
         "createdAt": item["createdAt"],
@@ -182,6 +191,8 @@ def version_summary(item: dict[str, Any]) -> dict[str, Any]:
         "version": item["version"],
         "versionName": item["versionName"],
         "entrypoint": item["entrypoint"],
+        "sourceRevision": item["sourceRevision"],
+        "configRevision": item["configRevision"],
         "sourceType": item["sourceType"],
         "fullImageUri": item["fullImageUri"],
         "publishStatus": item["publishStatus"],
@@ -196,8 +207,8 @@ def version_detail(item: dict[str, Any]) -> dict[str, Any]:
         "version": item["version"],
         "versionName": item["versionName"],
         "entrypoint": item["entrypoint"],
-        "codePath": item["codePath"],
-        "configPath": item["configPath"],
+        "sourceRevision": item["sourceRevision"],
+        "configRevision": item["configRevision"],
         "changelog": item["changelog"],
         "sourceType": item["sourceType"],
         "localImageName": item["localImageName"],
@@ -344,6 +355,155 @@ def touch_version(uuid: str, updated_at: Any | None = None) -> None:
     )
 
 
+def _normalize_name(value: str | None) -> str:
+    if not value:
+        return ""
+    name = value.strip().replace("\\", "/").split("/")[-1]
+    name = re.sub(r"\.(py|ya?ml|json|pt|pth(?:\.tar)?)$", "", name, flags=re.IGNORECASE)
+    return re.sub(r"[^a-zA-Z0-9_+\-]+", "_", name).strip("_")
+
+
+def _walk_candidate_parents(raw_path: str | None):
+    if not raw_path:
+        return
+    path = Path(raw_path).expanduser()
+    path = path if path.is_absolute() else (PROJECT_ROOT / path)
+    current = path if path.is_dir() else path.parent
+    seen: set[Path] = set()
+    while True:
+        resolved = current.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            yield resolved
+        if current == current.parent:
+            break
+        current = current.parent
+
+
+def discover_bundle_path(algorithm: dict[str, Any]) -> Path:
+    candidates: list[Path] = []
+    for raw_value in (algorithm.get("codePath"), algorithm.get("configPath")):
+        candidates.extend(list(_walk_candidate_parents(raw_value)))
+
+    for value in (
+        algorithm.get("algorithmCode"),
+        algorithm.get("algorithmName"),
+        Path(algorithm.get("codePath") or "").parent.name,
+        Path(algorithm.get("configPath") or "").parent.name,
+    ):
+        normalized = _normalize_name(value)
+        if normalized:
+            candidates.append((IMAGES_BUILD_ROOT / normalized).resolve())
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if (candidate / "runtime.manifest.json").exists():
+            return candidate
+
+    checked = ", ".join(str(item) for item in seen) or "<none>"
+    raise ApiError(404, f"cannot locate runtime bundle path, checked: {checked}")
+
+
+def resolve_hot_update_target(algorithm: dict[str, Any]) -> tuple[Path, str]:
+    bundle_path = discover_bundle_path(algorithm)
+    backends_dir = bundle_path / "app" / "inference" / "backends"
+    ensure(backends_dir.exists(), 404, f"backend directory not found: {backends_dir}")
+
+    candidates = sorted(
+        path for path in backends_dir.glob("*.py")
+        if path.is_file() and path.name != "__init__.py"
+    )
+    ensure(bool(candidates), 404, f"no editable backend python file found under: {backends_dir}")
+
+    target_file = candidates[0]
+    editor_path = f"/app/inference/backends/{target_file.name}"
+    return target_file, editor_path
+
+
+def bump_version(last_version: str | None) -> str:
+    if not last_version:
+        return "v0.0.1"
+    match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)$", last_version.strip())
+    if not match:
+        return f"{last_version.strip()}-hotfix"
+    major, minor, patch = map(int, match.groups())
+    return f"v{major}.{minor}.{patch + 1}"
+
+
+def latest_version_for_algorithm(algorithm_uuid: str) -> dict[str, Any]:
+    item = fetch_one(
+        """
+        SELECT *
+        FROM versions
+        WHERE algorithmUuid = ?
+        ORDER BY updatedAt DESC, createdAt DESC
+        LIMIT 1
+        """,
+        (algorithm_uuid,),
+    )
+    ensure(item is not None, 400, "hot update requires at least one registered version")
+    return item  # type: ignore[return-value]
+
+
+def create_hot_update_version(
+    algorithm: dict[str, Any],
+    target_file: Path,
+    editor_path: str,
+    requested_version: str | None,
+    changelog: str,
+) -> dict[str, Any]:
+    base_version = latest_version_for_algorithm(algorithm["uuid"])
+    new_version = (requested_version or "").strip() or bump_version(base_version.get("version"))
+    existing = fetch_one(
+        "SELECT uuid FROM versions WHERE algorithmUuid = ? AND version = ?",
+        (algorithm["uuid"], new_version),
+    )
+    ensure(existing is None, 400, "version already exists under current algorithm")
+
+    version_uuid = gen_uuid("ver")
+    created_at = now_db()
+    entrypoint = base_version.get("entrypoint") or "app.server:app"
+    source_revision = str(target_file)
+    config_revision = algorithm.get("configPath") or base_version.get("configRevision") or ""
+    execute(
+        """
+        INSERT INTO versions (
+            uuid, algorithmUuid, version, versionName, entrypoint,
+            sourceRevision, configRevision, changelog, sourceType, localImageName,
+            imagePullPolicy, registryUrl, repositoryName, imageTag,
+            imageDigest, fullImageUri, imageSize, publishStatus, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            version_uuid,
+            algorithm["uuid"],
+            new_version,
+            base_version.get("versionName") or new_version,
+            entrypoint,
+            source_revision,
+            config_revision,
+            changelog or f"Hot update applied to {editor_path}",
+            base_version.get("sourceType") or "local",
+            base_version.get("localImageName") or "",
+            base_version.get("imagePullPolicy") or "Never",
+            base_version.get("registryUrl") or "",
+            base_version.get("repositoryName") or "",
+            base_version.get("imageTag") or "",
+            base_version.get("imageDigest"),
+            base_version.get("fullImageUri") or base_version.get("localImageName") or "",
+            base_version.get("imageSize"),
+            base_version.get("publishStatus") or "DRAFT",
+            created_at,
+            created_at,
+        ),
+    )
+    touch_algorithm(algorithm["uuid"], created_at)
+    return require_version(version_uuid)
+
+
 def has_active_deployment(where_clause: str, params: tuple[Any, ...]) -> bool:
     row = fetch_one(
         f"""
@@ -394,8 +554,9 @@ def create_algorithm(body: CreateAlgorithmRequest):
         """
         INSERT INTO algorithms (
             uuid, algorithmCode, algorithmName, algorithmType, framework,
-            runtimeType, languageType, description, status, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            runtimeType, languageType, codePath, configPath, description,
+            status, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             algorithm_uuid,
@@ -405,6 +566,8 @@ def create_algorithm(body: CreateAlgorithmRequest):
             body.framework or "",
             body.runtimeType or "",
             body.languageType or "",
+            body.codePath or "",
+            body.configPath or "",
             body.description or "",
             "ENABLED",
             created_at,
@@ -446,6 +609,69 @@ def get_algorithm(uuid: str):
     if not item:
         return fail(404, "algorithm not found")
     return ok(algorithm_detail(item))
+
+
+@app.get("/api/v1/algorithms/{uuid}/hot-update")
+def get_hot_update_target(uuid: str):
+    algorithm = require_algorithm(uuid)
+    target_file, editor_path = resolve_hot_update_target(algorithm)
+    try:
+        content = target_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ApiError(500, f"failed to read backend file: {exc}") from exc
+
+    return ok(
+        {
+            "algorithmUuid": algorithm["uuid"],
+            "algorithmName": algorithm["algorithmName"],
+            "algorithmCode": algorithm["algorithmCode"],
+            "targetFile": str(target_file),
+            "editorPath": editor_path,
+            "filename": target_file.name,
+            "content": content,
+            "autoReload": {
+                "enabled": True,
+                "mechanism": "bind-mounted app directory + uvicorn --reload",
+                "effectiveScope": "/app/inference/backends",
+            },
+        }
+    )
+
+
+@app.post("/api/v1/algorithms/{uuid}/hot-update")
+def save_hot_update(uuid: str, body: SaveHotUpdateRequest):
+    algorithm = require_algorithm(uuid)
+    target_file, editor_path = resolve_hot_update_target(algorithm)
+    content = body.content
+    ensure(bool(content.strip()), 400, "content cannot be empty")
+
+    try:
+        target_file.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        raise ApiError(500, f"failed to write backend file: {exc}") from exc
+
+    version = create_hot_update_version(
+        algorithm=algorithm,
+        target_file=target_file,
+        editor_path=editor_path,
+        requested_version=body.version,
+        changelog=body.changelog,
+    )
+    return ok(
+        {
+            "algorithmUuid": algorithm["uuid"],
+            "editorPath": editor_path,
+            "filename": target_file.name,
+            "savedFile": str(target_file),
+            "version": version_summary(version),
+            "autoReload": {
+                "enabled": True,
+                "mechanism": "uvicorn reload watches /workspace/app",
+                "status": "pending",
+                "message": "backend file saved; runtime should auto-reload within a few seconds",
+            },
+        }
+    )
 
 
 @app.put("/api/v1/algorithms/{uuid}")
@@ -503,7 +729,8 @@ def delete_algorithm(uuid: str):
 
 @app.post("/api/v1/algorithms/{uuid}/versions")
 def create_version(uuid: str, body: CreateVersionRequest):
-    require_algorithm(uuid)
+    algorithm = require_algorithm(uuid)
+    ensure_algorithm_paths_configured(algorithm)
     payload = resolve_version_payload(body.model_dump())
 
     existing = fetch_one(
@@ -518,7 +745,7 @@ def create_version(uuid: str, body: CreateVersionRequest):
         """
         INSERT INTO versions (
             uuid, algorithmUuid, version, versionName, entrypoint,
-            codePath, configPath, changelog, sourceType, localImageName,
+            sourceRevision, configRevision, changelog, sourceType, localImageName,
             imagePullPolicy, registryUrl, repositoryName, imageTag,
             imageDigest, fullImageUri, imageSize, publishStatus, createdAt, updatedAt
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -529,8 +756,8 @@ def create_version(uuid: str, body: CreateVersionRequest):
             payload["version"],
             payload["versionName"] or payload["version"],
             payload["entrypoint"],
-            payload["codePath"],
-            payload["configPath"],
+            payload["sourceRevision"],
+            payload["configRevision"],
             payload["changelog"],
             payload["sourceType"],
             payload["localImageName"],
@@ -570,6 +797,8 @@ def get_version(uuid: str):
 @app.put("/api/v1/versions/{uuid}")
 def update_version(uuid: str, body: UpdateVersionRequest):
     item = require_version(uuid)
+    algorithm = require_algorithm(item["algorithmUuid"])
+    ensure_algorithm_paths_configured(algorithm)
 
     payload = body.model_dump(exclude_none=True)
     if "publishStatus" in payload:
@@ -640,75 +869,6 @@ def delete_version(uuid: str):
     return ok({"uuid": uuid})
 
 
-@app.post("/api/v1/deployments")
-def create_deployment(body: CreateDeploymentRequest):
-    version = require_version(body.versionUuid)
-    ensure_version_can_be_deployed(version)
-    algorithm = require_algorithm(version["algorithmUuid"])
-    namespace = body.namespace
-    deployment_name = generate_deployment_name(
-        algorithm["algorithmCode"], version["version"], namespace
-    )
-    created_at = now_db()
-    replicas = max(body.replicas, 1)
-    resources = {}
-    if body.resources:
-        if body.resources.cpu is not None:
-            resources["cpu"] = body.resources.cpu
-        if body.resources.memory is not None:
-            resources["memory"] = body.resources.memory
-
-    item = {
-        "uuid": gen_uuid("dep"),
-        "versionUuid": body.versionUuid,
-        "namespace": namespace,
-        "deploymentName": deployment_name,
-        "serviceName": f"{deployment_name}-svc",
-        "status": "RUNNING",
-        "image": version_image_ref(version),
-        "port": body.port,
-        "replicas": replicas,
-        "readyReplicas": replicas,
-        "accessEndpoint": deployment_endpoint(deployment_name, namespace, body.port),
-        "errorMessage": "",
-        "env": body.env,
-        "resources": resources,
-        "is_deleted": 0,
-        "deployedAt": created_at,
-        "updatedAt": created_at,
-    }
-    execute(
-        """
-        INSERT INTO deployments (
-            uuid, versionUuid, namespace, deploymentName, serviceName,
-            status, port, replicas, readyReplicas, accessEndpoint,
-            errorMessage, env, resources, image, is_deleted, deployedAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            item["uuid"],
-            item["versionUuid"],
-            item["namespace"],
-            item["deploymentName"],
-            item["serviceName"],
-            item["status"],
-            item["port"],
-            item["replicas"],
-            item["readyReplicas"],
-            item["accessEndpoint"],
-            item["errorMessage"],
-            json_dumps(item["env"]),
-            json_dumps(item["resources"]),
-            item["image"],
-            item["is_deleted"],
-            item["deployedAt"],
-            item["updatedAt"],
-        ),
-    )
-
-    return ok(item)
-
-
 @app.get("/api/v1/deployments")
 def list_deployments(
     versionUuid: str | None = Query(default=None),
@@ -737,103 +897,6 @@ def list_deployments(
 @app.get("/api/v1/deployments/{uuid}")
 def get_deployment(uuid: str):
     return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
-
-
-@app.put("/api/v1/deployments/{uuid}")
-def update_deployment(uuid: str, body: UpdateDeploymentRequest):
-    row = parse_deployment(require_deployment(uuid))
-    payload = body.model_dump(exclude_none=True)
-    if not payload:
-        return ok(deployment_detail(row))
-
-    next_version_uuid = payload.get("versionUuid", row["versionUuid"])
-    next_version = require_version(next_version_uuid, "version not found")
-    ensure_version_can_be_deployed(next_version)
-    current_version = require_version(row["versionUuid"], "current version not found")
-    ensure(
-        next_version["algorithmUuid"] == current_version["algorithmUuid"],
-        400,
-        "target version does not belong to current algorithm",
-    )
-
-    next_port = payload.get("port", row["port"])
-    next_env = payload.get("env", row["env"])
-    next_resources = payload.get("resources", row["resources"])
-    if hasattr(next_resources, "model_dump"):
-        next_resources = next_resources.model_dump(exclude_none=True)
-
-    execute(
-        """
-        UPDATE deployments
-        SET versionUuid = ?, image = ?, port = ?, accessEndpoint = ?, env = ?, resources = ?, status = ?, updatedAt = ?
-        WHERE uuid = ?
-        """,
-        (
-            next_version_uuid,
-            version_image_ref(next_version),
-            next_port,
-            deployment_endpoint(row["deploymentName"], row["namespace"], next_port),
-            json_dumps(next_env),
-            json_dumps(next_resources),
-            "UPDATING",
-            now_db(),
-            uuid,
-        ),
-    )
-    return ok(deployment_detail(parse_deployment(require_deployment(uuid))))
-
-
-@app.delete("/api/v1/deployments/{uuid}")
-def delete_deployment(uuid: str):
-    require_deployment(uuid)
-    updated_at = now_db()
-    execute(
-        """
-        UPDATE deployments
-        SET status = ?, readyReplicas = ?, is_deleted = ?, updatedAt = ?
-        WHERE uuid = ?
-        """,
-        ("DELETED", 0, 1, updated_at, uuid),
-    )
-    return ok({"uuid": uuid, "status": "DELETED", "is_deleted": 1})
-
-
-@app.post("/api/v1/deployments/{uuid}/restart")
-def restart_deployment(uuid: str):
-    row = require_deployment(uuid)
-    ensure(row["status"] != "DELETED", 400, "deployment is deleted")
-
-    execute(
-        "UPDATE deployments SET status = ?, updatedAt = ? WHERE uuid = ?",
-        ("UPDATING", now_db(), uuid),
-    )
-    return ok({"uuid": uuid, "status": "UPDATING"})
-
-
-@app.post("/api/v1/deployments/{uuid}/scale")
-def scale_deployment(uuid: str, body: ScaleRequest):
-    row = require_deployment(uuid)
-    ensure(body.replicas > 0, 400, "replicas must be greater than 0")
-
-    execute(
-        """
-        UPDATE deployments
-        SET status = ?, replicas = ?, readyReplicas = ?, updatedAt = ?
-        WHERE uuid = ?
-        """,
-        ("SCALING", body.replicas, body.replicas, now_db(), uuid),
-    )
-    return ok(
-        {
-            "uuid": uuid,
-            "namespace": row["namespace"],
-            "deploymentName": row["deploymentName"],
-            "status": "SCALING",
-            "replicas": body.replicas,
-        }
-    )
-
-
 @app.post("/api/v1/algorithms/{uuid}/build-records")
 def create_build_record(uuid: str, body: CreateBuildRecordRequest):
     require_algorithm(uuid)

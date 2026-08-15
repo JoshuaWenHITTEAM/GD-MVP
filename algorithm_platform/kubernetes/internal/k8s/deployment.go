@@ -38,6 +38,8 @@ func CreateDeployment(clientset *kubernetes.Clientset, req model.StartAlgorithmR
 		Image:           req.Image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		WorkingDir:      workingDir,
+		Command:         []string{"uvicorn"}, // 新增
+        Args:            []string{"app.server:app", "--host", "0.0.0.0", "--port", fmt.Sprintf("%d", containerPort), "--log-level", "info"}, // 新增
 		Ports: []corev1.ContainerPort{
 			{ContainerPort: containerPort},
 		},

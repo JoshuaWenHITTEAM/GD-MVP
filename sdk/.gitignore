@@ -1,0 +1,10 @@
+*.so
+*.o
+c/test_shm_zerocopy
+c/test_image_rebuild
+c/test_net
+c/test_control
+c/control_feedback_board_mock
+
+__pycache__/
+*.pyc

@@ -1,0 +1,27 @@
+model:
+  weights: ../detect/weights/anti_uav_yolov8n.pt
+  device: auto
+  imgsz: 1280
+  conf: 0.55
+  iou: 0.45
+  max_det: 300
+  target_classes:
+    - "0"
+
+input:
+  image_path: null
+
+output:
+  save_json: true
+  json_path: ../output/predict_result.json
+  save_image: true
+  image_path: ../output/predict_result.jpg
+  print_json: true
+
+visualization:
+  box_color_bgr:
+    - 0
+    - 215
+    - 255
+  line_thickness: 2
+  font_scale: 0.55

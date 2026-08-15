@@ -12,21 +12,21 @@
 
 当前主流程是：
 
-1. 创建算法
-2. 创建算法版本
-3. 构建新镜像并生成新版本
+1. 创建算法，并维护算法当前使用的外置代码与配置路径
+2. 基于算法当前代码/配置构建新镜像并生成新版本
+3. 在版本中固化本次构建对应的代码/配置快照信息
 4. 记录构建过程到 `build_records`
-5. 创建部署或把部署切换到新的 `versionUuid`
+5. 由运行时服务基于 `versionUuid` 执行部署、升级与回滚，并回写部署记录
 
 ## 目录结构
 
-- [app.py](/home/lurunda/GD-MVP/algorithm_platform/demo/app.py)
+- [app.py](app.py)
   API 入口与主要业务逻辑
-- [db.py](/home/lurunda/GD-MVP/algorithm_platform/demo/db.py)
+- [db.py](db.py)
   MySQL 表结构、初始化与种子数据
-- [models.py](/home/lurunda/GD-MVP/algorithm_platform/demo/models.py)
+- [models.py](models.py)
   请求模型定义
-- [requirements.txt](/home/lurunda/GD-MVP/algorithm_platform/demo/requirements.txt)
+- [requirements.txt](requirements.txt)
   Python 依赖
 - `runtime.py` 和 `scripts/` 目录仍保留在仓库中
 - 但它们不再是当前主流程的一部分
@@ -40,6 +40,7 @@
 - `uvicorn>=0.27,<1.0`
 - `pydantic>=2.0,<3.0`
 - `pymysql>=1.1,<2.0`
+- `cryptography>=42,<46`
 
 建议 Python 版本：
 
@@ -48,7 +49,7 @@
 安装依赖：
 
 ```bash
-cd /home/lurunda/GD-MVP/algorithm_platform/demo
+cd algorithm_platform/demo
 python3 -m pip install -r requirements.txt
 ```
 
@@ -56,8 +57,8 @@ python3 -m pip install -r requirements.txt
 
 - `DEMO_DB_HOST=127.0.0.1`
 - `DEMO_DB_PORT=3306`
-- `DEMO_DB_USER=lurunda`
-- `DEMO_DB_PASSWORD=G7v!Q2m#L9x@R4pZ`
+- `DEMO_DB_USER=<db-user>`
+- `DEMO_DB_PASSWORD=<db-password>`
 - `DEMO_DB_NAME=algo_manager`
 
 如需覆盖，可通过环境变量传入。
@@ -67,7 +68,7 @@ python3 -m pip install -r requirements.txt
 开发模式启动：
 
 ```bash
-cd /home/lurunda/GD-MVP/algorithm_platform/demo
+cd algorithm_platform/demo
 python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -80,7 +81,7 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 数据库定义位于：
 
-- [db.py](/home/lurunda/GD-MVP/algorithm_platform/demo/db.py)
+- [db.py](db.py)
 
 注意：
 
@@ -92,7 +93,7 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 当前 schema 版本：
 
-- `2026-04-09-mysql`
+- `2026-04-21-algorithm-paths`
 
 ## 数据库表结构与用途
 
@@ -119,6 +120,10 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
   运行环境类型，如 CPU/GPU
 - `languageType`
   开发语言
+- `codePath`
+  算法当前外置代码路径
+- `configPath`
+  算法当前外置配置路径
 - `description`
   算法描述
 - `status`
@@ -147,10 +152,10 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
   版本名称
 - `entrypoint`
   运行入口，例如 `python main.py`
-- `codePath`
-  外置代码目录
-- `configPath`
-  外置配置文件或配置目录路径
+- `sourceRevision`
+  构建该版本时使用的代码快照标识
+- `configRevision`
+  构建该版本时使用的配置快照标识
 - `changelog`
   变更说明
 - `sourceType`
@@ -179,7 +184,8 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 说明：
 
 - 原独立 `images` 表已经删除
-- 现在“一个版本只对应一个镜像”
+- 算法表保存当前生效的外置代码路径与配置路径
+- 版本表保存基于当时代码/配置构建出来的镜像结果及快照标识
 - 如果重新 build 新镜像，应创建新的版本
 - `publishStatus` 当前采用状态机约束：
   `DRAFT -> PUBLISHED -> OFFLINE -> PUBLISHED`
@@ -226,13 +232,15 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
   资源限制，JSON 字符串
 - `image`
   实际使用的镜像地址
+- `isDeleted`
+  逻辑删除标志
 - `deployedAt`
 - `updatedAt`
 
 说明：
 
-- 当 deployment 切换版本时，本质上就是把 `versionUuid` 指向新的版本
-- 回滚也只是把 `versionUuid` 切回旧版本
+- `demo` 只负责展示部署记录，不再执行部署写操作
+- 运行时服务负责创建、升级、删除、重启和扩缩容，并回写该表
 
 ### 4. `build_records`
 
@@ -312,20 +320,13 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 ### 部署
 
-- `POST /api/v1/deployments`
 - `GET /api/v1/deployments`
 - `GET /api/v1/deployments/{uuid}`
-- `PUT /api/v1/deployments/{uuid}`
-- `DELETE /api/v1/deployments/{uuid}`
-- `POST /api/v1/deployments/{uuid}/restart`
-- `POST /api/v1/deployments/{uuid}/scale`
 
 说明：
 
-- 创建部署时传 `versionUuid`
-- 更新部署时可以切换到新的 `versionUuid`
-- 创建部署和切换部署时，目标版本必须是 `PUBLISHED`
-- 这就是当前模型里“发布切换/回滚”的核心动作
+- `demo` 只保留部署记录查询接口
+- 部署的创建、升级、删除、重启、扩缩容由 `go` 运行时服务负责
 
 ### 构建记录
 
@@ -350,8 +351,8 @@ python3 -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 ## 使用建议
 
-- `codePath` 应指向后端机器上真实存在的代码目录
-- `configPath` 应指向后端机器上真实存在的配置文件或配置目录
+- `algorithms.codePath` 应指向后端机器上真实存在的代码目录
+- `algorithms.configPath` 应指向后端机器上真实存在的配置文件或配置目录
 - 本地镜像场景建议：
   `sourceType=local`
   `localImageName=<本地镜像名>`

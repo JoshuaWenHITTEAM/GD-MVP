@@ -36,7 +36,7 @@ def terminate_child() -> None:
         return
 
 
-def load_metadata(runtime_dir: Path) -> dict:
+def load_metadata(runtime_dir: Path) -> dict[str, object]:
     metadata_path = runtime_dir / "current" / "metadata.json"
     if not metadata_path.exists():
         return {}
@@ -63,7 +63,7 @@ def normalize_entrypoint(entrypoint: str) -> list[str]:
     return command
 
 
-def start_child(runtime_dir: Path, metadata: dict) -> subprocess.Popen:
+def start_child(runtime_dir: Path, metadata: dict[str, object]) -> subprocess.Popen:
     current_dir = runtime_dir / "current"
     code_dir = current_dir / "code"
     entrypoint = (metadata.get("entrypoint") or "").strip()

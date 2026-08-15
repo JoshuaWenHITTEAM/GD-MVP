@@ -236,13 +236,21 @@ def require_version(version_uuid: str) -> dict[str, Any] | None:
     return fetch_one("SELECT * FROM versions WHERE uuid = ?", (version_uuid,))
 
 
+def require_algorithm(algorithm_uuid: str) -> dict[str, Any] | None:
+    return fetch_one("SELECT * FROM algorithms WHERE uuid = ?", (algorithm_uuid,))
+
+
 def ensure_version_snapshot(version: dict[str, Any]) -> Path:
+    algorithm = require_algorithm(version["algorithmUuid"])
+    if not algorithm:
+        raise RuntimeError("algorithm not found while preparing version snapshot")
+
     snapshot_dir = VERSION_SNAPSHOT_ROOT / version["uuid"]
     if snapshot_dir.exists():
         shutil.rmtree(snapshot_dir)
     snapshot_dir.mkdir(parents=True, exist_ok=True)
-    code_path = Path(version.get("codePath") or "")
-    config_path = Path(version.get("configPath") or "")
+    code_path = Path(algorithm.get("codePath") or "")
+    config_path = Path(algorithm.get("configPath") or "")
     runtime_code_dir = snapshot_dir / "code"
     runtime_config_path = ""
 
@@ -250,7 +258,7 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
         if not code_path.is_dir():
             raise RuntimeError(f"codePath is not a directory: {code_path}")
         replace_directory(code_path, runtime_code_dir)
-    elif version.get("codePath"):
+    elif algorithm.get("codePath"):
         raise RuntimeError(f"codePath does not exist: {code_path}")
     else:
         runtime_code_dir.mkdir(parents=True, exist_ok=True)
@@ -282,7 +290,7 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
             target_file = config_dir / config_path.name
             shutil.copy2(config_path, target_file)
             runtime_config_path = str(target_file)
-    elif version.get("configPath"):
+    elif algorithm.get("configPath"):
         raise RuntimeError(f"configPath does not exist: {config_path}")
 
     write_json(
@@ -292,8 +300,10 @@ def ensure_version_snapshot(version: dict[str, Any]) -> Path:
             "version": version["version"],
             "versionName": version["versionName"],
             "entrypoint": version["entrypoint"],
-            "codePath": version.get("codePath", ""),
-            "configPath": version["configPath"],
+            "codePath": algorithm.get("codePath", ""),
+            "configPath": algorithm.get("configPath", ""),
+            "sourceRevision": version.get("sourceRevision", ""),
+            "configRevision": version.get("configRevision", ""),
             "runtimeCodePath": str(runtime_code_dir),
             "runtimeConfigPath": runtime_config_path,
             "publishStatus": version["publishStatus"],

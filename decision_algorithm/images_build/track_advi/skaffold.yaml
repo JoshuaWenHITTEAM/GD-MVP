@@ -1,0 +1,34 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: track-advi-build
+
+build:
+  tagPolicy:
+    inputDigest: {}
+  local:
+    push: false
+    useDockerCLI: true
+    useBuildkit: true
+  artifacts:
+    - image: track-advi
+      context: .
+      docker:
+        dockerfile: runtime.Dockerfile
+      sync:
+        manual:
+          - src: "app/**/*.py"
+            dest: /workspace
+          - src: "lib/**/*.py"
+            dest: /workspace
+          - src: "configs/**/*.yaml"
+            dest: /workspace
+      hooks:
+        after:
+          - command: ["sh", "-c", "./after_build_update.sh"]
+            os: [darwin, linux]
+
+profiles:
+  - name: minikube
+    activation:
+      - kubeContext: minikube

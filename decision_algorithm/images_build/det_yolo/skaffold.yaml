@@ -1,0 +1,26 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: antiuav-det-yolo-build
+
+build:
+  tagPolicy:
+    inputDigest: {}
+  local:
+    push: false
+    useDockerCLI: true
+    useBuildkit: true
+  artifacts:
+    - image: antiuav-det-yolo
+      context: .
+      docker:
+        dockerfile: runtime.Dockerfile
+      hooks:
+        after:
+          - command: ["sh", "-c", "./after_build_update.sh"]
+            os: [darwin, linux]
+
+profiles:
+  - name: minikube
+    activation:
+      - kubeContext: minikube

@@ -1,0 +1,7 @@
+*.so
+*.o
+c/test_shm_zerocopy
+c/test_image_rebuild
+
+__pycache__/
+*.pyc

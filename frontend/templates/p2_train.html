@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>算法链路重构子系统 - 强化学习决策中心</title>
+    <link rel="stylesheet" href="/static/fonts/local-fonts.css">
+    <script src="/static/vendor/tailwind/tailwindcss.js"></script>
+    <script src="/static/vendor/iconify/iconify.min.js"></script>
+    <script src="/static/vendor/iconify/iconify-local-icons.js"></script>
+    <script src="/static/vendor/echarts/echarts.min.js"></script>
+    <link rel="stylesheet" href="../static/css/p2.css">
+    <link rel="stylesheet" href="../static/css/public.css">
+</head>
+
+<body class="bg-[#020617] text-slate-200 font-sans overflow-hidden h-screen flex flex-col">
+    <!-- 顶栏 -->
+    <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 shrink-0 glass-panel z-10">
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-4">
+                <h2 class="subsystem-title" id="page-title">算法链路重构子系统</h2>
+                <div class="h-4 w-[1px] bg-slate-700"></div>
+            </div>
+
+            <nav class="flex items-center gap-1">
+                <a href="/" class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                    id="nav-p1">
+                    光电感知算法库
+                </a>
+                <a href="/train"
+                    class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                    id="nav-p2">
+                    算法链路重构
+                </a>
+                <a href="/reasoning"
+                    class="nav-link-item px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                    id="nav-link-item" id="nav-p3">
+                    在线应用
+                </a>
+            </nav>
+        </div>
+
+        <div class="flex items-center gap-6">
+            <div class="relative">
+                <svg aria-hidden="true" class="iconify text-xl text-slate-400 cursor-pointer iconify--material-symbols"
+                    ...>
+                    <path d="..." fill="currentColor"></path>
+                </svg>
+                <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] text-slate-500">当前时间 (CST)</p>
+                <p class="text-xs font-mono text-sky-400" id="current-time">2026/2/26 10:28:53</p>
+            </div>
+        </div>
+    </header>
+    <main class="flex-1 flex overflow-hidden relative">
+        <!-- 左侧面板：节点状态 -->
+        <aside class="w-80 border-r border-slate-800 p-4 flex flex-col space-y-4 bg-slate-900/20 z-40">
+            <div class="bg-slate-900/40 rounded-xl p-4 border border-slate-800">
+                <h3 class="flex items-center text-sm font-semibold mb-3">
+                    <span class="iconify mr-2 text-blue-400" data-icon="material-symbols:analytics-outline"></span>
+                    节点性能监测指标
+                </h3>
+                <div class="space-y-3">
+                    <div class="p-2 border border-slate-800 rounded bg-black/20">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">当前STEP</span>
+                            <span id="node-step-text" class="text-blue-400">等待启动</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div id="node-step-bar" class="bg-blue-500 h-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="p-2 border border-slate-800 rounded bg-black/20">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">CPU占用</span>
+                            <span id="node-cpu-text" class="text-emerald-400">等待启动</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div id="node-cpu-bar" class="bg-emerald-500 h-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="p-2 border border-slate-800 rounded bg-black/20">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">显存占用</span>
+                            <span id="node-gpu-mem-text" class="text-amber-400">等待启动</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div id="node-gpu-mem-bar" class="bg-amber-500 h-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-hidden flex flex-col mt-4">
+                <h3 class="flex items-center text-sm font-semibold mb-3">
+                    <span class="iconify mr-2 text-blue-400" data-icon="material-symbols:history"></span>
+                    Agent 决策历史
+                </h3>
+                <!-- 这里加上 id: agent-log-container，并清空内部静态内容 -->
+                <div id="agent-log-container" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    <!-- 动态日志将插入到这里 -->
+                </div>
+            </div>
+        </aside>
+        <!-- 中间画布区域 -->
+        <section class="flex-1 relative bg-[radial-gradient(circle_at_center,_#1e293b_0%,_#020617_70%)]">
+            <!-- 背景装饰网格 -->
+            <div class="absolute inset-0 opacity-20 pointer-events-none"
+                style="background-image: radial-gradient(circle, #334155 1px, transparent 1px); background-size: 40px 40px;">
+            </div>
+            
+
+            <!-- 核心：强化学习 Agent -->
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                <div
+                    class="relative w-48 h-48 flex items-center justify-center animate-[float_4s_ease-in-out_infinite]">
+                    <!-- 外环扩散动画 -->
+                    <div
+                        class="absolute inset-0 border-2 border-blue-500/30 rounded-full animate-[pulse-ring_3s_infinite]">
+                    </div>
+                    <div
+                        class="absolute inset-4 border-2 border-emerald-500/20 rounded-full animate-[pulse-ring_3s_infinite_1s]">
+                    </div>
+                    <!-- 中心 Agent 核心图标 -->
+                    <div
+                        class="w-32 h-32 bg-slate-900 rounded-full border-2 border-blue-500 flex flex-col items-center justify-center agent-glow relative overflow-hidden group hover:scale-110 transition-transform cursor-pointer">
+                        <div class="absolute inset-0 bg-gradient-to-tr from-blue-600/20 to-transparent"></div>
+                        <span class="iconify text-5xl text-blue-400 mb-1"
+                            data-icon="material-symbols:neurology-outline"></span>
+                        <span class="text-xs font-bold text-white tracking-widest">RL-AGENT</span>
+                        <div class="px-2 py-0.5 bg-blue-600 rounded text-[8px] font-mono mt-1">DECISION CORE</div>
+                    </div>
+                    <!-- 状态标签 -->
+                    <div
+                        class="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 px-3 py-1 rounded-full whitespace-nowrap">
+                        <span class="text-[10px] text-blue-400 font-mono">Active Policy: PPO_v3.2</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Agent 参数配置面板 -->
+            <div class="absolute bottom-10 left-1/2 -translate-x-1/2 z-40 w-[600px]">
+                <div
+                    class="bg-slate-900/90 border border-blue-500/30 rounded-xl backdrop-blur-md overflow-hidden shadow-2xl shadow-blue-900/20">
+                    <button
+                        class="w-full flex items-center justify-between px-4 py-2 bg-blue-600/10 border-b border-blue-500/20 text-blue-400 hover:bg-blue-600/20 transition-colors"
+                        onclick="toggleConfig()">
+                        <div class="flex items-center space-x-2">
+                            <span class="iconify" data-icon="material-symbols:settings-input-component"></span>
+                            <span class="text-xs font-bold uppercase tracking-widest">Agent 核心参数配置</span>
+                        </div>
+                        <span class="iconify transform transition-transform"
+                            data-icon="material-symbols:keyboard-arrow-down" id="config-toggle-icon"></span>
+                    </button>
+                    <div class="p-4 grid grid-cols-2 gap-6 max-h-[280px] overflow-y-auto custom-scrollbar"
+                        id="config-content">
+                        <!-- 训练核心参数 -->
+                        <div class="space-y-4">
+                            <h5 class="text-[10px] font-bold text-blue-300 uppercase border-l-2 border-blue-500 pl-2">训练核心参数</h5>
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex justify-between text-[10px] mb-1">
+                                        <span class="text-slate-400">学习率 (Learning Rate)</span>
+                                        <span class="text-blue-400 font-mono" id="param-lr-value">0.0001</span>
+                                    </div>
+                                    <input
+                                        id="param-lr"
+                                        class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                        max="0.01" min="0.0001" step="0.0001" type="range" value="0.0001" />
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] mb-1">
+                                        <span class="text-slate-400">折扣因子 (Gamma)</span>
+                                        <span class="text-blue-400 font-mono" id="param-gamma-value">0.99</span>
+                                    </div>
+                                    <input
+                                        id="param-gamma"
+                                        class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                        max="1.0" min="0.8" step="0.01" type="range" value="0.99" />
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] mb-1">
+                                        <span class="text-slate-400">初始探索率 (Start Epsilon)</span>
+                                        <span class="text-blue-400 font-mono" id="param-start-e-value">0.90</span>
+                                    </div>
+                                    <input
+                                        id="param-start-e"
+                                        class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                        max="1.0" min="0.05" step="0.01" type="range" value="0.9" />
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] mb-1">
+                                        <span class="text-slate-400">最终探索率 (End Epsilon)</span>
+                                        <span class="text-blue-400 font-mono" id="param-end-e-value">0.05</span>
+                                    </div>
+                                    <input
+                                        id="param-end-e"
+                                        class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                        max="0.5" min="0.01" step="0.01" type="range" value="0.05" />
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] mb-1">
+                                        <span class="text-slate-400">总步数 (Total Timesteps)</span>
+                                    </div>
+                                    <input id="param-total-timesteps"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[10px] text-blue-400 focus:border-blue-500 outline-none"
+                                        type="number" min="100" step="100" value="400" />
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="p-2 bg-black/30 rounded border border-slate-800">
+                                        <span class="text-[9px] text-slate-500 block">开始学习步数</span>
+                                        <input id="param-learning-starts"
+                                            class="w-full bg-transparent text-[10px] text-blue-400 font-mono outline-none"
+                                            type="number" min="0" step="1" value="10" />
+                                    </div>
+                                    <div class="p-2 bg-black/30 rounded border border-slate-800">
+                                        <span class="text-[9px] text-slate-500 block">训练频率</span>
+                                        <input id="param-train-frequency"
+                                            class="w-full bg-transparent text-[10px] text-blue-400 font-mono outline-none"
+                                            type="number" min="1" step="1" value="20" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 训练资源参数 -->
+                        <div class="space-y-4">
+                            <div>
+                                <h5
+                                    class="text-[10px] font-bold text-emerald-300 uppercase border-l-2 border-emerald-500 pl-2 mb-2">
+                                    训练资源参数</h5>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="p-2 bg-black/30 rounded border border-slate-800">
+                                        <span class="text-[9px] text-slate-500 block">Batch Size</span>
+                                        <input id="param-batch-size"
+                                            class="w-full bg-transparent text-[10px] text-emerald-400 font-mono outline-none"
+                                            type="number" min="1" step="1" value="32" />
+                                    </div>
+                                    <div class="p-2 bg-black/30 rounded border border-slate-800">
+                                        <span class="text-[9px] text-slate-500 block">随机种子</span>
+                                        <input id="param-seed"
+                                            class="w-full bg-transparent text-[10px] text-emerald-400 font-mono outline-none"
+                                            type="number" min="0" step="1" value="123" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h5
+                                    class="text-[10px] font-bold text-emerald-300 uppercase border-l-2 border-emerald-500 pl-2 mb-2">
+                                    运行参数</h5>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="p-2 bg-black/30 rounded border border-slate-800">
+                                        <span class="text-[9px] text-slate-500 block">使用 CUDA</span>
+                                        <label class="flex items-center justify-end mt-1">
+                                            <input id="param-cuda" class="accent-emerald-500" type="checkbox" checked />
+                                        </label>
+                                    </div>
+                                    <div class="p-2 bg-black/30 rounded border border-slate-800">
+                                        <span class="text-[9px] text-slate-500 block">Torch Deterministic</span>
+                                        <label class="flex items-center justify-end mt-1">
+                                            <input id="param-torch-deterministic" class="accent-emerald-500" type="checkbox" checked />
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 mt-2">
+                                    <div class="p-2 bg-black/30 rounded border border-slate-800">
+                                        <span class="text-[9px] text-slate-500 block">目标网络同步频率</span>
+                                        <input id="param-target-network-frequency"
+                                            class="w-full bg-transparent text-[10px] text-emerald-400 font-mono outline-none"
+                                            type="number" min="1" step="1" value="20" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pt-1 flex flex-col space-y-2">
+                                <div class="flex space-x-2">
+                                    <button
+                                        id="save-config-btn"
+                                        class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 py-2 rounded text-[10px] font-bold transition-all flex items-center justify-center">
+                                        <span class="iconify mr-1" data-icon="material-symbols:save"></span> 保存配置
+                                    </button>
+                                    <button
+                                        id="load-config-btn"
+                                        class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 py-2 rounded text-[10px] font-bold transition-all flex items-center justify-center">
+                                        <span class="iconify mr-1" data-icon="material-symbols:upload"></span> 加载配置
+                                    </button>
+                                </div>
+                                <button
+                                    class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded text-[10px] font-bold transition-all flex items-center justify-center shadow-lg shadow-blue-600/20"
+                                    onclick="applyOptimization()">
+                                    <span class="iconify mr-1" data-icon="material-symbols:rocket-launch"></span> 一键优化应用
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 模块 1: 预处理 -->
+            <div class="absolute top-32 left-32 z-30">
+                <div
+                    class="module-card w-48 p-4 bg-slate-900/80 border border-slate-800 rounded-xl backdrop-blur-sm transition-all group hover:-translate-y-1">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded bg-blue-900/30 flex items-center justify-center">
+                            <span class="iconify text-xl text-blue-400"
+                                data-icon="material-symbols:filter-vintage-outline"></span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-500 block">ID: MODULE_01</span>
+                            <span id="status-01" class="text-xs py-0.5 px-2 bg-slate-500/20 text-slate-400 rounded">等待中</span>
+                        </div>
+                    </div>
+                    <h4 class="text-sm font-bold text-white mb-1">图像预处理模块</h4>
+                    <p class="text-[10px] text-slate-400 mb-4 line-clamp-2 leading-relaxed">负责多频谱信号对齐、噪声抑制及对比度动态增强。</p>
+                    <div
+                        class="flex justify-between items-center text-[10px] text-slate-500 pt-2 border-t border-slate-800">
+                        <span>算法: <b id="algo-01" class="text-blue-400">待载入</b></span>
+                        <span id="ver-01">v1.0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 模块 2: 目标检测 -->
+            <div class="absolute top-32 right-32 z-30">
+                <div
+                    class="module-card w-48 p-4 bg-slate-900/80 border border-slate-800 rounded-xl backdrop-blur-sm transition-all group hover:-translate-y-1">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded bg-amber-900/30 flex items-center justify-center">
+                            <span class="iconify text-xl text-amber-400" data-icon="material-symbols:target"></span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-500 block">ID: MODULE_02</span>
+                            <span id="status-02" class="text-xs py-0.5 px-2 bg-slate-500/20 text-slate-400 rounded">等待中</span>
+                        </div>
+                    </div>
+                    <h4 class="text-sm font-bold text-white mb-1">目标检测重构项</h4>
+                    <p class="text-[10px] text-slate-400 mb-4 line-clamp-2 leading-relaxed">动态载入检测头，在精度与速度之间基于算力平衡决策。
+                    </p>
+                    <div
+                        class="flex justify-between items-center text-[10px] text-slate-500 pt-2 border-t border-slate-800">
+                        <span>当前算法: <b id="algo-02" class="text-amber-400">待载入</b></span>
+                        <span id="ver-02">v1.0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 模块 3: 目标跟踪 -->
+            <div class="absolute bottom-32 left-32 z-30">
+                <div
+                    class="module-card w-48 p-4 bg-slate-900/80 border border-slate-800 rounded-xl backdrop-blur-sm transition-all group hover:translate-y-1">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded bg-emerald-900/30 flex items-center justify-center">
+                            <span class="iconify text-xl text-emerald-400"
+                                data-icon="material-symbols:share-location-outline"></span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-500 block">ID: MODULE_03</span>
+                            <span id="status-03" class="text-xs py-0.5 px-2 bg-slate-500/20 text-slate-400 rounded">等待中</span>
+                        </div>
+                    </div>
+                    <h4 class="text-sm font-bold text-white mb-1">多目标链路跟踪</h4>
+                    <p class="text-[10px] text-slate-400 mb-4 line-clamp-2 leading-relaxed">自适应卡尔曼滤波参数调整，减少遮挡导致的目标丢失率。
+                    </p>
+                    <div
+                        class="flex justify-between items-center text-[10px] text-slate-500 pt-2 border-t border-slate-800">
+                        <span>当前算法: <b id="algo-03" class="text-emerald-400">待载入</b></span>
+                        <span id="ver-03">v1.0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 模块 4: 装备响应 -->
+            <div class="absolute bottom-32 right-32 z-30">
+                <div
+                    class="module-card w-48 p-4 bg-slate-900/80 border border-slate-800 rounded-xl backdrop-blur-sm transition-all group hover:translate-y-1">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded bg-red-900/30 flex items-center justify-center">
+                            <span class="iconify text-xl text-red-400"
+                                data-icon="material-symbols:settings-input-component"></span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-500 block">ID: MODULE_04</span>
+                            <span id="status-04" class="text-xs py-0.5 px-2 bg-blue-500/20 text-blue-400 rounded">待开发</span>
+                        </div>
+                    </div>
+                    <h4 class="text-sm font-bold text-white mb-1">装备响应控制</h4>
+                    <p class="text-[10px] text-slate-400 mb-4 line-clamp-2 leading-relaxed">最终控制指令下发至装备执行端，实时反馈动作奖励值。
+                    </p>
+                    <div
+                        class="flex justify-between items-center text-[10px] text-slate-500 pt-2 border-t border-slate-800">
+                        <span>当前状态: <b id="state-04" class="text-red-400">NaN</b></span>
+                        <span id="ver-04">Beta</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 浮动操作提示 -->
+            <div
+                class="absolute bottom-6 left-1/2 -translate-x-1/2 flex space-x-4 bg-slate-900/80 border border-slate-700 p-2 rounded-lg backdrop-blur-sm shadow-2xl z-40">
+                <button 
+                    id="start-train-btn"
+                    class="flex items-center space-x-2 px-4 py-2 bg-blue-600 rounded text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="iconify" data-icon="material-symbols:play-arrow"></span>
+                    <span>立即开始重构演训</span>
+                </button>
+                <button 
+                    id="stop-train-btn"
+                    disabled
+                    class="flex items-center space-x-2 px-4 py-2 bg-slate-800 rounded text-sm font-medium hover:bg-slate-700 transition-colors border border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="iconify" data-icon="material-symbols:stop-circle-outline"></span>
+                    <span>终止训练任务</span>
+                </button>
+            </div>
+        </section>
+        <!-- 右侧面板：训练监控 -->
+        <aside class="w-80 border-l border-slate-800 p-4 flex flex-col space-y-4 bg-slate-900/20 z-40">
+            <h3 class="flex items-center text-sm font-semibold mb-1">
+                <span class="iconify mr-2 text-blue-400" data-icon="material-symbols:model-training"></span>
+                RL Agent 训练监控
+            </h3>
+            <div class="h-48 border border-slate-800 rounded-xl bg-black/20 overflow-hidden" id="rewardStats"></div>
+            <div class="h-48 border border-slate-800 rounded-xl bg-black/20 overflow-hidden" id="lossStats"></div>
+            <div class="grid grid-cols-2 gap-3 mt-2">
+                <div class="bg-slate-900 border border-slate-800 p-2 rounded text-center">
+                    <p class="text-[10px] text-slate-500 uppercase">探索率 (Epsilon)</p>
+                    <p id="summary-epsilon" class="text-xl font-mono text-white">-</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-2 rounded text-center">
+                    <p class="text-[10px] text-slate-500 uppercase">当前 Step</p>
+                    <p id="summary-step" class="text-xl font-mono text-white">-</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-2 rounded text-center col-span-2">
+                    <p class="text-[10px] text-slate-500 uppercase mb-1">策略熵 (Entropy)</p>
+                    <div class="flex items-center space-x-2">
+                        <div class="flex-1 bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="bg-gradient-to-r from-blue-500 to-emerald-500 h-full" style="width: 75%"></div>
+                        </div>
+                        <span class="text-xs font-mono">0.68</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 p-4 rounded-xl border border-blue-900/30 bg-blue-500/5">
+                <h4 class="text-xs font-bold text-blue-400 mb-2 uppercase flex items-center">
+                    <span class="iconify mr-1" data-icon="material-symbols:info-outline"></span>
+                    重构优先级策略
+                </h4>
+                <ul class="text-[11px] space-y-2 text-slate-400">
+                    <li class="flex items-start">
+                        <span class="w-1 h-1 bg-blue-500 rounded-full mt-1.5 mr-2"></span>
+                        <span>优先保证<span class="text-blue-300">响应响应控制</span>的实时性(Latency &lt; 20ms)。</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="w-1 h-1 bg-blue-500 rounded-full mt-1.5 mr-2"></span>
+                        <span>环境信噪比低于阈值时，自动切换<span class="text-blue-300">多尺度预处理</span>算法。</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="w-1 h-1 bg-blue-500 rounded-full mt-1.5 mr-2"></span>
+                        <span>算力池不足 30% 时，限制检测头模型参数量。</span>
+                    </li>
+                </ul>
+            </div>
+        </aside>
+    </main>
+    <!-- 底部状态条 -->
+    <footer
+        class="h-8 border-t border-slate-800 bg-slate-900/50 flex items-center justify-between px-6 text-[10px] text-slate-500 z-50">
+        <div class="flex items-center space-x-6">
+            <span class="flex items-center"><span class="w-2 h-2 bg-emerald-500 rounded-full mr-2"></span>存储集群:
+                正常</span>
+            <span class="flex items-center"><span class="w-2 h-2 bg-emerald-500 rounded-full mr-2"></span>算力资源:
+                高余量</span>
+            <span class="flex items-center"><span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>连接: 对等节点
+                10/10</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span>系统版本: rel-2026.02.26.a</span>
+            <span class="font-mono">IP: 192.168.10.45</span>
+        </div>
+    </footer>
+    <script src="../static/js/p2_1.js?v=20260507_6"></script>
+    <script src="../static/js/public.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,27 @@
+services:
+  infer-runtime:
+    build:
+      context: .
+      dockerfile: runtime.base.Dockerfile
+    container_name: track-siamrpnpp-runtime-dev
+    gpus: all
+    working_dir: /workspace
+    command: >
+      uvicorn app.server:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /workspace/app
+      --reload-dir /workspace/pysot
+      --reload-dir /workspace/configs
+    ports:
+      - "8003:8000"
+    environment:
+      SIAMRPNPP_MIN_SCORE: "0.60"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ./app:/workspace/app
+      - ./pysot:/workspace/pysot
+      - ./configs:/workspace/configs
+      - ./models:/models:ro

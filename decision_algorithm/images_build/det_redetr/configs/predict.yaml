@@ -1,0 +1,25 @@
+model:
+  weights: ../models/anti_uav_rtdetr.pt
+  device: auto
+  imgsz: 640
+  conf: 0.25
+  iou: 0.45
+  max_det: 300
+
+input:
+  image_path: null
+
+output:
+  save_json: true
+  json_path: ../output/predict_result.json
+  save_image: true
+  image_path: ../output/predict_result.jpg
+  print_json: true
+
+visualization:
+  box_color_bgr:
+    - 0
+    - 215
+    - 255
+  line_thickness: 2
+  font_scale: 0.55

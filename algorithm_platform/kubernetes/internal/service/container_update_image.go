@@ -7,11 +7,35 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+func parseImageTag(image string) string {
+	lastSlash := strings.LastIndex(image, "/")
+	lastColon := strings.LastIndex(image, ":")
+	if lastColon > lastSlash {
+		return image[lastColon+1:]
+	}
+	return ""
+}
+
+func parseRepositoryName(image string) string {
+	lastSlash := strings.LastIndex(image, "/")
+	lastColon := strings.LastIndex(image, ":")
+
+	end := len(image)
+	if lastColon > lastSlash {
+		end = lastColon
+	}
+	if lastSlash >= 0 {
+		return image[lastSlash+1 : end]
+	}
+	return image[:end]
+}
 
 func (s *ContainerService) UpdateImage(
 	name string,
@@ -53,25 +77,32 @@ func (s *ContainerService) UpdateImage(
 	oldImage := record.Image
 	oldVersionUUID := record.VersionUUID
 
-	// 3. 基于旧版本复制新版本
 	now := time.Now()
 	newVersionUUID := "ver-" + uuid.NewString()
 	autoVersion := "auto-" + now.Format("20060102150405")
 
-	newVer := oldVer
-	newVer.UUID = newVersionUUID
-	newVer.Version = autoVersion
-	newVer.VersionName = autoVersion
-	newVer.LocalImageName = newImage
-
-	// 这里根据你们系统习惯改
-	newVer.ImageTag = autoVersion
-	newVer.Changelog = "auto created by image update"
-	newVer.UpdatedAt = &now
-	newVer.CreatedAt = &now
-
-	// 如果你们有软删除字段
-	newVer.IsDeleted = 0
+	// 3. 显式构造新版本，不要整对象复制
+	newVer := model.AlgorithmVersion{
+		UUID:            newVersionUUID,
+		AlgorithmUUID:   oldVer.AlgorithmUUID,
+		Version:         autoVersion,
+		VersionName:     autoVersion,
+		Entrypoint:      oldVer.Entrypoint,
+		Changelog:       "auto created by image update",
+		SourceType:      oldVer.SourceType,
+		LocalImageName:  newImage,
+		ImagePullPolicy: oldVer.ImagePullPolicy,
+		RegistryURL:     oldVer.RegistryURL,
+		RepositoryName:  parseRepositoryName(newImage),
+		ImageTag:        parseImageTag(newImage),
+		ImageDigest:     "",
+		FullImageURI:    newImage,
+		ImageSize:       oldVer.ImageSize,
+		PublishStatus:   oldVer.PublishStatus,
+		IsDeleted:       0,
+		CreatedAt:       &now,
+		UpdatedAt:       &now,
+	}
 
 	// 4. 先写版本表
 	if err := db.DB.Create(&newVer).Error; err != nil {
@@ -86,7 +117,6 @@ func (s *ContainerService) UpdateImage(
 		name,
 		newImage,
 	); err != nil {
-		// K8s 更新失败，删除刚插入的新版本
 		_ = db.DB.Where("uuid = ?", newVersionUUID).Delete(&model.AlgorithmVersion{}).Error
 		return "", fmt.Errorf("update k8s deployment image failed: %w", err)
 	}
@@ -97,7 +127,6 @@ func (s *ContainerService) UpdateImage(
 		"image":       newImage,
 		"updatedAt":   now,
 	}).Error; err != nil {
-		// 数据库回写失败，尝试回滚 K8s
 		_, _ = k8s.UpdateDeploymentImage(
 			context.Background(),
 			s.clientset,

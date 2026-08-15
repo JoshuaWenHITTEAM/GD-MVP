@@ -1,0 +1,11 @@
+model:
+  config_path: configs/siamrpnpp.yaml
+  weight_path: models/siamrpnpp.pth
+
+input:
+  sequence_dir: ../Anti-UAV-Tracking-V0/Anti-UAV-Tracking-V0/video01
+  gt_file: ../Anti-UAV-Tracking-V0/Anti-UAV-Tracking-V0GT/video01_gt.txt
+  num_track_frames: 20
+
+output:
+  output_dir: outputs/predict

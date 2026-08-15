@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "runtime-manifest.v1",
+  "algorithmKey": "pre_clahe",
+  "algorithmType": "preprocessing",
+  "composeFile": "compose.yaml",
+  "service": {
+    "containerName": "pre-clahe-runtime-dev",
+    "host": "127.0.0.1",
+    "hostPort": 8005,
+    "healthPath": "/healthz",
+    "readyPath": "/ready",
+    "versionPath": "/version"
+  },
+  "invoke": {
+    "mode": "http",
+    "preferredInput": "url",
+    "urlEndpoint": {
+      "path": "/infer/url",
+      "method": "POST",
+      "contentType": "application/json",
+      "body": {
+        "model_name": "pre_clahe",
+        "image_url": "string",
+        "return_image": true
+      }
+    },
+    "fileEndpoint": {
+      "path": "/infer/file",
+      "method": "POST",
+      "contentType": "multipart/form-data",
+      "formFields": {
+        "model_name": "pre_clahe",
+        "image": "file",
+        "return_image": true
+      }
+    }
+  }
+}

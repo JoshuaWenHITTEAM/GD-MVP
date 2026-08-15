@@ -1,0 +1,71 @@
+ body {
+     font-family: 'InterLocal', 'Microsoft YaHei', 'PingFang SC', Arial, sans-serif;
+     background-color: #020617;
+     color: #e2e8f0;
+     overflow: hidden;
+ }
+
+ .glass-panel {
+     background: rgba(15, 23, 42, 0.6);
+     backdrop-filter: blur(12px);
+     border: 1px solid rgba(56, 189, 248, 0.2);
+     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+ }
+
+ .neon-border {
+     border: 1px solid rgba(56, 189, 248, 0.5);
+     box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+ }
+
+ .active-nav {
+     background: linear-gradient(90deg, rgba(56, 189, 248, 0.2) 0%, rgba(56, 189, 248, 0) 100%);
+     border-left: 4px solid #38bdf8;
+     color: #38bdf8;
+ }
+
+ .training-card {
+     background: linear-gradient(145deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.4));
+     border: 1px solid rgba(56, 189, 248, 0.1);
+ }
+
+ /* 自定义滚动条 */
+ ::-webkit-scrollbar {
+     width: 6px;
+ }
+
+ ::-webkit-scrollbar-track {
+     background: transparent;
+ }
+
+ ::-webkit-scrollbar-thumb {
+     background: #1e293b;
+     border-radius: 10px;
+ }
+
+ ::-webkit-scrollbar-thumb:hover {
+     background: #334155;
+ }
+
+ @keyframes pulse-slow {
+
+     0%,
+     100% {
+         opacity: 1;
+     }
+
+     50% {
+         opacity: 0.6;
+     }
+ }
+
+ .status-pulse {
+     animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+ }
+
+ .tag-badge {
+     background: rgba(56, 189, 248, 0.1);
+     border: 1px solid rgba(56, 189, 248, 0.2);
+     padding: 2px 8px;
+     border-radius: 4px;
+     font-size: 11px;
+ }

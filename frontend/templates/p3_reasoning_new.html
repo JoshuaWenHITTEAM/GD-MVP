@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>在线应用子系统 - 视频播放 + 移动检测框演示</title>
+    <link rel="stylesheet" href="/static/fonts/local-fonts.css">
+    <script src="/static/vendor/tailwind/tailwindcss.js"></script>
+    <script src="/static/vendor/iconify/iconify.min.js"></script>
+    <script src="/static/vendor/iconify/iconify-local-icons.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0B1021; font-family: 'Noto Sans SC', 'Segoe UI', sans-serif; overflow: hidden; height: 100vh; }
+        :root { --accent-cyan: #00FBFF; --accent-purple: #8B5CFF; --glass-bg: rgba(255,255,255,0.05); }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; }
+        .glow-text { text-shadow: 0 0 6px var(--accent-cyan); }
+        .node-active { animation: pulse 1.8s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(0,251,255,0.4); } 70% { box-shadow: 0 0 0 8px rgba(0,251,255,0); } 100% { box-shadow: 0 0 0 0 rgba(0,251,255,0); } }
+        .scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent); animation: scan 3s linear infinite; pointer-events: none; opacity: 0.5; z-index: 5; }
+        @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+        .hidden-panel { display: none !important; }
+        .sensor-btn.active { background: rgba(0,251,255,0.2); border-color: var(--accent-cyan); color: var(--accent-cyan); }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #1a1f2e; }
+        ::-webkit-scrollbar-thumb { background: var(--accent-cyan); border-radius: 4px; }
+        .video-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); border-radius: 40px; padding: 8px 24px; display: flex; gap: 20px; border: 1px solid var(--accent-cyan); box-shadow: 0 0 15px rgba(0,251,255,0.3); }
+        .video-btn { background: rgba(0,251,255,0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 6px 18px; border-radius: 30px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; }
+        .video-btn:hover { background: var(--accent-cyan); color: #000; box-shadow: 0 0 12px var(--accent-cyan); }
+        canvas { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+        .animate-marquee { display: inline-block; white-space: nowrap; animation: marquee 20s linear infinite; }
+        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        .status-badge { position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.7); color: #0ff; font-size: 9px; padding: 2px 6px; border-radius: 12px; z-index: 10; font-family: monospace; pointer-events: none; }
+        /* 叠加层画布 */
+        .overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 15;
+            background: transparent;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="p-2 flex flex-col h-screen">
+    <!-- 顶部状态栏 -->
+    <header class="h-14 flex items-center justify-between px-6 glass-panel mb-2 rounded-lg border-b border-cyan-500/30">
+        <div class="flex items-center gap-4">
+            <span class="iconify text-3xl text-cyan-400" data-icon="material-symbols:AppSettingsAltRounded"></span>
+            <h1 class="text-xl font-bold tracking-widest glow-text">在线应用子系统 <span class="text-xs font-light text-cyan-500/70 ml-2">视频播放 + 移动检测框</span></h1>
+        </div>
+        <div class="flex items-center gap-8 text-sm">
+            <div class="flex flex-col items-end"><span class="text-gray-400 text-xs">当前任务 ID</span><span class="text-cyan-400 font-mono">TASK-20260226-X09</span></div>
+            <div class="h-8 w-px bg-white/10"></div>
+            <div class="flex flex-col items-end"><span class="text-gray-400 text-xs">执行阶段</span><span class="text-green-400">就绪</span></div>
+            <div class="h-8 w-px bg-white/10"></div>
+            <div class="flex flex-col items-end"><span class="text-gray-400 text-xs">运行总时长</span><span class="text-cyan-400 font-mono" id="timer">00:00:00</span></div>
+            <button class="ml-4 px-4 py-1.5 bg-cyan-600/30 border border-cyan-500 rounded text-cyan-300 hover:bg-cyan-500 hover:text-white transition-all" onclick="alert('算法管理功能已精简')">算法管理</button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex gap-2 overflow-hidden">
+        <!-- 左侧多模态传感器区 -->
+        <aside class="w-80 flex flex-col gap-2 overflow-hidden">
+            <section class="glass-panel p-3 rounded-lg">
+                <div class="flex items-center justify-between mb-3 pb-1 border-b border-white/10">
+                    <h3 class="text-xs font-bold text-cyan-300 flex items-center gap-2"><span class="iconify" data-icon="material-symbols:sensors"></span>多模态感知接入</h3>
+                    <div class="flex gap-1">
+                        <button class="sensor-btn active px-1.5 py-0.5 rounded text-[10px] border border-white/10" id="btn-fusion" onclick="toggleView('fusion')">融合</button>
+                        <button class="sensor-btn px-1.5 py-0.5 rounded text-[10px] border border-white/10" id="btn-split" onclick="toggleView('split')">分屏</button>
+                    </div>
+                </div>
+                <div class="space-y-2 overflow-y-auto max-h-[calc(100vh-450px)] pr-1">
+                    <div class="relative aspect-video bg-black rounded border border-cyan-500/30 overflow-hidden" id="view-fusion">
+                        <canvas id="fusionCanvas" class="w-full h-full"></canvas>
+                        <div class="absolute top-2 left-2 pointer-events-none"><span class="text-[9px] bg-cyan-500/80 text-black px-1 font-bold">FUSED REALTIME</span></div>
+                        <div class="absolute bottom-2 right-2 text-[8px] text-cyan-400 font-mono text-right">LAT: 39.91<br>LON: 116.40<br>ALT: 1250m</div>
+                        <div class="scan-line"></div>
+                        <div class="status-badge" id="fusionStatus">⏹️ 未播放</div>
+                    </div>
+                    <div class="hidden-panel space-y-2" id="view-split">
+                        <div class="border border-orange-500/20 bg-orange-500/5 p-1 rounded">
+                            <div class="flex justify-between text-[9px] text-orange-400 mb-1 px-1"><span class="flex items-center gap-1"><span class="iconify" data-icon="material-symbols:thermostat"></span>IR THERMAL</span><span>LIVE</span></div>
+                            <div class="h-24 bg-black/60 rounded relative overflow-hidden"><canvas id="irCanvas" class="w-full h-full"></canvas><div class="scan-line !bg-orange-500/30"></div></div>
+                        </div>
+                        <div class="border border-blue-500/20 bg-blue-500/5 p-1 rounded">
+                            <div class="flex justify-between text-[9px] text-blue-400 mb-1 px-1"><span class="flex items-center gap-1"><span class="iconify" data-icon="material-symbols:radar"></span>RADAR SCAN</span><span>77GHz</span></div>
+                            <div class="h-24 bg-black/60 rounded overflow-hidden" id="radarPanel"><div class="w-full h-full flex items-center justify-center text-[9px] text-gray-500">雷达模拟占位</div></div>
+                        </div>
+                        <div class="border border-purple-500/20 bg-purple-900/10 p-1 rounded">
+                            <div class="flex justify-between text-[9px] text-purple-400 mb-1 px-1"><span class="flex items-center gap-1"><span class="iconify" data-icon="material-symbols:waves"></span>ACOUSTIC</span><span>SYNC</span></div>
+                            <canvas class="w-full h-16 bg-black/40 rounded" id="acousticCanvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="glass-panel p-3 rounded-lg flex-1 flex flex-col min-h-0">
+                <h3 class="text-xs font-bold text-cyan-300 flex items-center gap-2 mb-3"><span class="iconify" data-icon="material-symbols:dynamic-form"></span>实时特征项同步</h3>
+                <div class="flex-1 overflow-y-auto space-y-3 pr-2">
+                    <div class="p-2 bg-white/5 rounded"><div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>目标概率密度</span><span class="text-cyan-400 font-mono">--</span></div><div class="w-full h-1 bg-white/10 rounded"><div class="h-full bg-cyan-500" style="width: 0%"></div></div></div>
+                    <div class="p-2 bg-white/5 rounded"><div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>运动轨迹一致性</span><span class="text-green-400 font-mono">--</span></div><div class="grid grid-cols-10 gap-0.5 h-1"><div class="bg-green-500/30 h-full"></div><div class="bg-green-500/30 h-full"></div><div class="bg-green-500/30 h-full"></div><div class="bg-green-500/30 h-full"></div><div class="bg-green-500/30 h-full"></div><div class="bg-green-500/30 h-full"></div><div class="bg-white/5 h-full"></div><div class="bg-white/5 h-full"></div><div class="bg-white/5 h-full"></div><div class="bg-white/5 h-full"></div></div></div>
+                    <div id="feature-list"><div class="flex justify-between items-center py-1 border-b border-white/5"><span class="text-[10px] text-gray-400">RCS截面波形</span><span class="text-[10px] text-blue-400 font-mono">--</span></div><div class="flex justify-between items-center py-1 border-b border-white/5"><span class="text-[10px] text-gray-400">频谱多普勒</span><span class="text-[10px] text-purple-400 font-mono">--</span></div></div>
+                    <div class="mt-2 h-20" id="miniSyncGraph"><div class="w-full h-full flex items-center justify-center text-gray-500 text-xs">特征图静态</div></div>
+                </div>
+            </section>
+        </aside>
+
+        <!-- 中央算法链路及视频区域 -->
+        <section class="flex-1 glass-panel rounded-lg relative overflow-hidden flex flex-col">
+            <div class="absolute inset-0 z-0 opacity-40"><canvas id="bgTrackingCanvas" class="w-full h-full"></canvas><div class="scan-line"></div></div>
+            <div class="absolute bottom-4 right-4 z-20 w-48 glass-panel p-2 rounded border border-purple-500/30 bg-black/40">
+                <div class="flex items-center justify-between mb-1 border-b border-white/10 pb-1"><span class="text-[10px] font-bold text-purple-400">实时目标跟踪列表</span><span class="text-[8px] text-gray-500" id="tracking-uuid">UID: --</span></div>
+                <div class="max-h-32 overflow-y-auto"><table class="w-full text-[9px] text-left"><tbody id="tracking-tbody"><tr><td colspan="3" class="text-center text-gray-500">等待视频</td></tr></tbody></table></div>
+            </div>
+            <div class="absolute top-4 left-4 z-10"><h2 class="text-lg font-bold flex items-center gap-2 glow-text"><span class="iconify" data-icon="mdi:vector-polyline"></span>任务算法实时链路可视化 (DAG)</h2></div>
+            <div class="flex-1 flex flex-col relative min-h-0">
+                <div class="flex-1 flex flex-col p-4 pt-10 gap-4 overflow-hidden">
+                    <div class="h-32 flex items-center justify-around relative border-b border-cyan-500/10">
+                        <svg class="absolute inset-0 w-full h-full pointer-events-none"><path d="M 100 64 H 900" fill="none" stroke="rgba(0, 251, 255, 0.2)" stroke-dasharray="4,4" stroke-width="1"></path></svg>
+                        <div class="relative z-10 w-40 p-3 glass-panel border border-cyan-500/30 rounded flex flex-col items-center"><span class="iconify text-xl text-cyan-400 mb-1" data-icon="material-symbols:sensors"></span><span class="text-[10px] font-bold">数据预处理</span></div>
+                        <div class="text-cyan-400/20 transform scale-125">▶</div>
+                        <div class="relative z-10 w-44 p-3 glass-panel border border-cyan-400 rounded flex flex-col items-center node-active bg-cyan-400/5"><span class="iconify text-xl text-cyan-400 mb-1" data-icon="material-symbols:target"></span><span class="text-[10px] font-bold text-cyan-400">目标检测算法</span><div class="text-[9px] text-cyan-300 font-mono mt-1" id="node2-stats">等待视频</div></div>
+                        <div class="text-cyan-400/20 transform scale-125">▶</div>
+                        <div class="relative z-10 w-44 p-3 glass-panel border border-purple-400 rounded flex flex-col items-center node-active bg-purple-400/5"><span class="iconify text-xl text-purple-400 mb-1" data-icon="material-symbols:track-changes"></span><span class="text-[10px] font-bold text-purple-400">多目标跟踪算法</span><div class="text-[9px] text-purple-300 font-mono mt-1" id="node3-stats">等待视频</div></div>
+                    </div>
+                    <div class="flex-1 flex gap-4 min-h-0 pb-2">
+                        <!-- 目标检测视图（带叠加框） -->
+                        <div class="flex-1 flex flex-col viz-container relative">
+                            <div class="bg-cyan-900/40 px-3 py-1 flex justify-between items-center border-b border-cyan-500/30"><span class="text-[10px] font-bold text-cyan-300">目标检测实时视图</span><span class="text-[9px] font-mono text-cyan-500/80">移动检测框</span></div>
+                            <div class="flex-1 relative bg-black/40">
+                                <div class="scan-line"></div>
+                                <div class="relative w-full h-full video-container">
+                                    <canvas id="detectionCanvas" class="w-full h-full"></canvas>
+                                    <canvas id="detectionOverlay" class="overlay-canvas"></canvas>
+                                </div>
+                                <div class="status-badge" id="detectionStatus">⏹️ 未播放</div>
+                            </div>
+                        </div>
+                        <!-- 运动轨迹视图（带叠加框） -->
+                        <div class="flex-1 flex flex-col viz-container relative border-purple-500/30">
+                            <div class="bg-purple-900/40 px-3 py-1 flex justify-between items-center border-b border-purple-500/30"><span class="text-[10px] font-bold text-purple-300">运动轨迹分析</span><span class="text-[9px] font-mono text-purple-500/80">移动跟踪框</span></div>
+                            <div class="flex-1 relative bg-black/40">
+                                <div class="scan-line" style="animation-delay:1.5s;"></div>
+                                <div class="relative w-full h-full video-container">
+                                    <canvas id="trajectoryCanvas" class="w-full h-full"></canvas>
+                                    <canvas id="trajectoryOverlay" class="overlay-canvas"></canvas>
+                                </div>
+                                <div class="status-badge" id="trajStatus">⏹️ 未播放</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="h-48 border-t border-white/10 flex p-3 gap-4">
+                <div class="flex-1 flex flex-col"><span class="text-[10px] uppercase text-gray-500 mb-1">容器资源画像</span><div class="flex-1 bg-black/20 rounded flex items-center justify-center text-gray-500 text-xs">静态展示</div></div>
+                <div class="w-px bg-white/5"></div>
+                <div class="w-64 flex flex-col"><span class="text-[10px] uppercase text-gray-500 mb-1">生存探针监控</span><div class="flex-1 flex flex-col justify-between py-2"><div class="flex justify-between items-center"><span class="text-xs">容器存活</span><span class="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">HEALTHY</span></div><div class="w-full bg-white/5 h-1 rounded-full overflow-hidden"><div class="bg-green-500 h-full w-[100%]"></div></div><div class="flex justify-between items-center"><span class="text-xs">算法健康</span><span class="text-xs font-mono text-cyan-400">--</span></div><div class="flex justify-between items-center text-[10px]"><span class="text-gray-500">重启次数:0</span><span class="text-gray-500">Uptime: --</span></div></div></div>
+            </div>
+        </section>
+
+        <aside class="w-96 flex flex-col gap-2">
+            <div class="glass-panel p-4 rounded-lg flex-1"><h3 class="text-sm font-bold flex items-center gap-2 mb-4 border-b border-white/10 pb-2 text-cyan-300"><span class="iconify" data-icon="mdi:file-chart"></span>算法效果评估模块</h3><div class="space-y-6"><div><div class="flex justify-between text-xs mb-1"><span>目标检测置信度</span><span class="text-cyan-400">--</span></div><div class="h-1.5 bg-white/5 rounded-full overflow-hidden"><div class="h-full bg-cyan-500 w-0"></div></div></div><div><div class="flex justify-between text-xs mb-1"><span>跟踪稳定性</span><span class="text-purple-400">--</span></div><div class="h-1.5 bg-white/5 rounded-full overflow-hidden"><div class="h-full bg-purple-500 w-0"></div></div></div><div class="h-40 flex items-center justify-center text-gray-500 text-xs">雷达图占位</div></div><div class="mt-4 p-3 bg-cyan-950/20 border border-cyan-500/20 rounded"><h4 class="text-[11px] font-bold text-cyan-400 mb-2 underline">火力覆盖情况估计</h4><div class="grid grid-cols-2 gap-2 text-[10px]"><div>有效射程: <span class="text-white">--</span></div><div>拦截概率: <span class="text-green-400">--</span></div><div>光斑一致性: <span class="text-white">--</span></div><div>建议策略: <span class="text-yellow-400 italic">--</span></div></div></div></div>
+            <div class="glass-panel p-4 rounded-lg h-72 flex flex-col"><h3 class="text-sm font-bold flex items-center gap-2 mb-3 text-purple-300"><span class="iconify" data-icon="mdi:console-line"></span>输出控制指令流</h3><div class="flex-1 bg-black/40 rounded p-2 font-mono text-[10px] overflow-y-auto space-y-1"><p class="text-gray-500">[--:--:--] 等待视频流</p></div><div class="mt-3 grid grid-cols-2 gap-4"><div class="text-center"><div class="text-[10px] text-gray-500">方位角</div><div class="text-xl text-cyan-400">--</div></div><div class="text-center"><div class="text-[10px] text-gray-500">俯仰角</div><div class="text-xl text-purple-400">--</div></div></div></div>
+        </aside>
+    </main>
+
+    <footer class="h-10 mt-2 glass-panel rounded px-4 flex items-center justify-between text-[11px]">
+        <div class="flex items-center gap-4 overflow-hidden"><span class="text-yellow-500 font-bold flex items-center gap-1"><span class="iconify" data-icon="mdi:alert-decagram"></span> SYSTEM_LOG:</span><div class="whitespace-nowrap animate-marquee" id="logMsg">视频播放就绪 | 移动检测框演示已启动</div></div>
+        <div class="flex items-center gap-4 text-gray-400"><span>AUDIT: ACTIVE</span><div class="w-2 h-2 rounded-full bg-green-500"></div></div>
+    </footer>
+
+    <div class="video-bar">
+        <label class="video-btn" style="cursor:pointer;">📁 上传本地视频<input type="file" id="uploadVideoInput" accept="video/*" style="display:none"></label>
+        <button class="video-btn" id="stopVideoBtn">⏹️ 停止视频</button>
+    </div>
+
+    <script>
+        // ==================== 视频核心模块 ====================
+        let videoElement = null;
+        let animationFrameId = null;
+
+        // 画布元素
+        const fusionCanvas = document.getElementById('fusionCanvas');
+        const detectionCanvas = document.getElementById('detectionCanvas');
+        const trajectoryCanvas = document.getElementById('trajectoryCanvas');
+        const irCanvas = document.getElementById('irCanvas');
+        let fusionCtx, detectionCtx, trajectoryCtx, irCtx;
+
+        // 叠加层画布（用于移动框）
+        const detectionOverlay = document.getElementById('detectionOverlay');
+        const trajectoryOverlay = document.getElementById('trajectoryOverlay');
+        let detectionOverlayCtx, trajectoryOverlayCtx;
+
+        // 移动框的状态（两个独立）
+        let detectionBox = { x: 50, y: 50, w: 80, h: 60, vx: 2, vy: 1.5, color: '#00FBFF' };
+        let trajectoryBox = { x: 150, y: 100, w: 90, h: 70, vx: -1.8, vy: 2.2, color: '#8B5CFF' };
+
+        function initCanvasContexts() {
+            if (fusionCanvas) fusionCtx = fusionCanvas.getContext('2d');
+            if (detectionCanvas) detectionCtx = detectionCanvas.getContext('2d');
+            if (trajectoryCanvas) trajectoryCtx = trajectoryCanvas.getContext('2d');
+            if (irCanvas) irCtx = irCanvas.getContext('2d');
+            if (detectionOverlay) detectionOverlayCtx = detectionOverlay.getContext('2d');
+            if (trajectoryOverlay) trajectoryOverlayCtx = trajectoryOverlay.getContext('2d');
+            resizeAllCanvases();
+        }
+
+        function resizeAllCanvases() {
+            [fusionCanvas, detectionCanvas, trajectoryCanvas, irCanvas, detectionOverlay, trajectoryOverlay].forEach(canvas => {
+                if (canvas && canvas.clientWidth && canvas.clientHeight) {
+                    canvas.width = canvas.clientWidth;
+                    canvas.height = canvas.clientHeight;
+                }
+            });
+        }
+
+        function drawVideoToCanvas(ctx, canvas, video) {
+            if (!ctx || !canvas || !video || video.readyState < 2) return false;
+            const vw = video.videoWidth, vh = video.videoHeight;
+            if (vw === 0 || vh === 0) return false;
+            const canvasW = canvas.width, canvasH = canvas.height;
+            if (canvasW === 0 || canvasH === 0) return false;
+            const scaleX = canvasW / vw;
+            const scaleY = canvasH / vh;
+            const scale = Math.max(scaleX, scaleY);
+            const drawW = vw * scale;
+            const drawH = vh * scale;
+            const offsetX = (canvasW - drawW) / 2;
+            const offsetY = (canvasH - drawH) / 2;
+            ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
+            return true;
+        }
+
+        // 更新移动框位置（边界反弹）
+        function updateBoxPosition(box, canvasWidth, canvasHeight) {
+            if (!canvasWidth || !canvasHeight) return;
+            // 更新位置
+            box.x += box.vx;
+            box.y += box.vy;
+            // 边界检测
+            if (box.x < 0) { box.x = 0; box.vx = -box.vx; }
+            if (box.y < 0) { box.y = 0; box.vy = -box.vy; }
+            if (box.x + box.w > canvasWidth) { box.x = canvasWidth - box.w; box.vx = -box.vx; }
+            if (box.y + box.h > canvasHeight) { box.y = canvasHeight - box.h; box.vy = -box.vy; }
+        }
+
+        // 绘制移动框到叠加canvas
+        function drawMovingBox(ctx, box, canvasWidth, canvasHeight) {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.strokeStyle = box.color;
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = box.color;
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
+            // 可选：添加一个半透明填充
+            ctx.fillStyle = box.color + '20';
+            ctx.fillRect(box.x, box.y, box.w, box.h);
+            ctx.shadowBlur = 0;
+            // 添加标签文字
+            ctx.fillStyle = box.color;
+            ctx.font = '12px monospace';
+            ctx.fillText('TARGET', box.x + 5, box.y - 5);
+        }
+
+        // 主绘制循环
+        function drawAllCanvases() {
+            if (!videoElement || videoElement.paused || videoElement.ended || videoElement.readyState < 2) {
+                if (fusionCtx && fusionCanvas) {
+                    fusionCtx.clearRect(0, 0, fusionCanvas.width, fusionCanvas.height);
+                    fusionCtx.fillStyle = '#444';
+                    fusionCtx.font = '12px monospace';
+                    fusionCtx.fillText('等待视频...', 20, 40);
+                }
+                if (animationFrameId) requestAnimationFrame(drawAllCanvases);
+                return;
+            }
+            resizeAllCanvases();
+
+            // 1. 绘制视频到各个canvas
+            if (fusionCtx && fusionCanvas) {
+                drawVideoToCanvas(fusionCtx, fusionCanvas, videoElement);
+                document.getElementById('fusionStatus').innerHTML = '🎥 视频播放中';
+            }
+            if (detectionCtx && detectionCanvas) {
+                drawVideoToCanvas(detectionCtx, detectionCanvas, videoElement);
+                document.getElementById('detectionStatus').innerHTML = '🎥 检测框移动中';
+            }
+            if (trajectoryCtx && trajectoryCanvas) {
+                drawVideoToCanvas(trajectoryCtx, trajectoryCanvas, videoElement);
+                document.getElementById('trajStatus').innerHTML = '🎥 跟踪框移动中';
+            }
+            if (irCtx && irCanvas && !document.getElementById('view-split').classList.contains('hidden-panel')) {
+                drawVideoToCanvas(irCtx, irCanvas, videoElement);
+            }
+
+            // 2. 更新并绘制移动框（需要画布的实际像素尺寸）
+            if (detectionOverlayCtx && detectionOverlay) {
+                updateBoxPosition(detectionBox, detectionOverlay.width, detectionOverlay.height);
+                drawMovingBox(detectionOverlayCtx, detectionBox, detectionOverlay.width, detectionOverlay.height);
+            }
+            if (trajectoryOverlayCtx && trajectoryOverlay) {
+                updateBoxPosition(trajectoryBox, trajectoryOverlay.width, trajectoryOverlay.height);
+                drawMovingBox(trajectoryOverlayCtx, trajectoryBox, trajectoryOverlay.width, trajectoryOverlay.height);
+            }
+
+            // 更新DAG节点统计信息（模拟）
+            document.getElementById('node2-stats').innerHTML = `检测框: (${Math.round(detectionBox.x)}, ${Math.round(detectionBox.y)})`;
+            document.getElementById('node3-stats').innerHTML = `跟踪框: (${Math.round(trajectoryBox.x)}, ${Math.round(trajectoryBox.y)})`;
+            document.getElementById('logMsg').innerHTML = `视频播放中 | 检测框移动 | 跟踪框移动 | 分辨率 ${videoElement.videoWidth}x${videoElement.videoHeight}`;
+
+            animationFrameId = requestAnimationFrame(drawAllCanvases);
+        }
+
+        function stopVideo() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (videoElement) {
+                videoElement.pause();
+                videoElement.src = '';
+                videoElement.load();
+            }
+            [fusionCtx, detectionCtx, trajectoryCtx, irCtx].forEach(ctx => {
+                if (ctx && ctx.canvas) {
+                    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                    ctx.fillStyle = '#555';
+                    ctx.font = '12px monospace';
+                    ctx.fillText('⏹️ 视频已停止', 20, 40);
+                }
+            });
+            // 清空叠加层
+            if (detectionOverlayCtx && detectionOverlay) detectionOverlayCtx.clearRect(0, 0, detectionOverlay.width, detectionOverlay.height);
+            if (trajectoryOverlayCtx && trajectoryOverlay) trajectoryOverlayCtx.clearRect(0, 0, trajectoryOverlay.width, trajectoryOverlay.height);
+            document.getElementById('fusionStatus').innerHTML = '⏹️ 未播放';
+            document.getElementById('detectionStatus').innerHTML = '⏹️ 未播放';
+            document.getElementById('trajStatus').innerHTML = '⏹️ 未播放';
+            document.getElementById('logMsg').innerHTML = '视频已停止 | 请上传视频文件';
+        }
+
+        function startVideoFromFile(file) {
+            const url = URL.createObjectURL(file);
+            stopVideo();
+            if (!videoElement) {
+                videoElement = document.createElement('video');
+                videoElement.autoplay = true;
+                videoElement.loop = true;
+                videoElement.muted = true;
+                videoElement.playsInline = true;
+            }
+            videoElement.src = url;
+            videoElement.onloadedmetadata = () => {
+                resizeAllCanvases();
+                videoElement.play().then(() => {
+                    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                    animationFrameId = requestAnimationFrame(drawAllCanvases);
+                }).catch(err => {
+                    console.error('自动播放失败:', err);
+                    alert('无法自动播放视频，请尝试点击页面后再上传。可能需要静音支持，当前已静音。');
+                });
+            };
+            videoElement.onerror = () => alert('视频文件无效或格式不支持，请尝试 H.264 MP4 文件');
+        }
+
+        document.getElementById('uploadVideoInput').addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) startVideoFromFile(e.target.files[0]);
+        });
+        document.getElementById('stopVideoBtn').addEventListener('click', () => stopVideo());
+
+        function toggleView(mode) {
+            const fusionDiv = document.getElementById('view-fusion');
+            const splitDiv = document.getElementById('view-split');
+            const btnFusion = document.getElementById('btn-fusion');
+            const btnSplit = document.getElementById('btn-split');
+            if (mode === 'fusion') {
+                btnFusion.classList.add('active'); btnSplit.classList.remove('active');
+                fusionDiv.classList.remove('hidden-panel'); splitDiv.classList.add('hidden-panel');
+            } else {
+                btnFusion.classList.remove('active'); btnSplit.classList.add('active');
+                fusionDiv.classList.add('hidden-panel'); splitDiv.classList.remove('hidden-panel');
+            }
+        }
+        window.toggleView = toggleView;
+
+        // 背景装饰Canvas（简单多边形）
+        const bgCanvas = document.getElementById('bgTrackingCanvas');
+        if (bgCanvas) {
+            const bgCtx = bgCanvas.getContext('2d');
+            function animateBackground() {
+                if (!bgCanvas || !bgCtx) return;
+                bgCanvas.width = bgCanvas.clientWidth;
+                bgCanvas.height = bgCanvas.clientHeight;
+                bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+                bgCtx.strokeStyle = 'rgba(0,255,255,0.1)';
+                bgCtx.lineWidth = 1;
+                for (let i = 0; i < 10; i++) {
+                    bgCtx.beginPath();
+                    bgCtx.rect(20 + i*30, 20 + i*15, 40, 40);
+                    bgCtx.stroke();
+                }
+                requestAnimationFrame(animateBackground);
+            }
+            animateBackground();
+        }
+
+        window.addEventListener('load', () => {
+            initCanvasContexts();
+            stopVideo();
+        });
+        window.addEventListener('resize', () => resizeAllCanvases());
+
+        let seconds = 0;
+        setInterval(() => {
+            const timerEl = document.getElementById('timer');
+            if (timerEl) {
+                seconds++;
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = seconds % 60;
+                timerEl.innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

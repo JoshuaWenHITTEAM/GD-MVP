@@ -11,12 +11,12 @@ import pymysql
 TZ = timezone(timedelta(hours=8))
 BASE_DIR = Path(__file__).resolve().parent
 RUNTIME_ROOT = BASE_DIR / "runtime"
-SCHEMA_VERSION = "2026-04-15-mysql-datetime"
+SCHEMA_VERSION = "2026-04-21-algorithm-paths"
 
 DB_HOST = os.getenv("DEMO_DB_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("DEMO_DB_PORT", "3307"))
-DB_USER = os.getenv("DEMO_DB_USER", "root")
-DB_PASSWORD = os.getenv("DEMO_DB_PASSWORD", "123456")
+DB_PORT = int(os.getenv("DEMO_DB_PORT", "3306"))
+DB_USER = os.getenv("DEMO_DB_USER", "appuser")
+DB_PASSWORD = os.getenv("DEMO_DB_PASSWORD", "")
 DB_NAME = os.getenv("DEMO_DB_NAME", "algo_manager")
 DB_CHARSET = "utf8mb4"
 DB_PATH = f"mysql://{DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
@@ -37,6 +37,8 @@ SCHEMA_SQL = [
         framework VARCHAR(64) NOT NULL,
         runtimeType VARCHAR(32) NOT NULL,
         languageType VARCHAR(32) NOT NULL,
+        codePath VARCHAR(255) NOT NULL,
+        configPath VARCHAR(255) NOT NULL,
         description TEXT NOT NULL,
         status VARCHAR(32) NOT NULL,
         createdAt DATETIME(6) NOT NULL,
@@ -50,8 +52,8 @@ SCHEMA_SQL = [
         version VARCHAR(64) NOT NULL,
         versionName VARCHAR(128) NOT NULL,
         entrypoint VARCHAR(255) NOT NULL,
-        codePath VARCHAR(255) NOT NULL,
-        configPath VARCHAR(255) NOT NULL,
+        sourceRevision VARCHAR(255) NULL,
+        configRevision VARCHAR(255) NULL,
         changelog TEXT NOT NULL,
         sourceType VARCHAR(32) NOT NULL,
         localImageName VARCHAR(255) NOT NULL,
@@ -64,8 +66,8 @@ SCHEMA_SQL = [
         imageSize BIGINT NULL,
         publishStatus VARCHAR(32) NOT NULL,
         is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-        createdAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        createdAt DATETIME(6) NOT NULL,
+        updatedAt DATETIME(6) NOT NULL,
         UNIQUE KEY uniq_algorithm_version (algorithmUuid, version),
         CONSTRAINT fk_versions_algorithm
             FOREIGN KEY (algorithmUuid) REFERENCES algorithms(uuid)
@@ -92,9 +94,9 @@ SCHEMA_SQL = [
         
         is_deleted TINYINT(1) NOT NULL DEFAULT 0,
         active_flag TINYINT(1) DEFAULT 1,
-        
-        deployedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+        deployedAt DATETIME(6) NOT NULL,
+        updatedAt DATETIME(6) NOT NULL,
         
         UNIQUE KEY uniq_namespace_deployment (namespace, deploymentName, active_flag),
         KEY idx_deployments_version_uuid (versionUuid),
@@ -167,7 +169,7 @@ def _normalize_query(query: str) -> str:
     return query.replace("?", "%s")
 
 
-def to_db_datetime(value: datetime | str | None) -> datetime | None:
+def to_db_datetime(value: Any | None) -> datetime | None:
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
@@ -319,8 +321,9 @@ def seed_data() -> None:
                 """
                 INSERT INTO algorithms (
                     uuid, algorithmCode, algorithmName, algorithmType, framework,
-                    runtimeType, languageType, description, status, createdAt, updatedAt
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    runtimeType, languageType, codePath, configPath, description,
+                    status, createdAt, updatedAt
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     algorithm_uuid,
@@ -330,6 +333,8 @@ def seed_data() -> None:
                     "PyTorch",
                     "GPU",
                     "Python",
+                    "/workspace/yolo",
+                    "/configs/yolo/default",
                     "基于YOLO的目标检测算法",
                     "ENABLED",
                     created_at,
@@ -342,7 +347,7 @@ def seed_data() -> None:
                 """
                 INSERT INTO versions (
                     uuid, algorithmUuid, version, versionName, entrypoint,
-                    codePath, configPath, changelog, sourceType, localImageName,
+                    sourceRevision, configRevision, changelog, sourceType, localImageName,
                     imagePullPolicy, registryUrl, repositoryName, imageTag,
                     imageDigest, fullImageUri, imageSize, publishStatus,
                     is_deleted, createdAt, updatedAt
@@ -355,8 +360,8 @@ def seed_data() -> None:
                         "1.0.0",
                         "YOLO基础版",
                         "python main.py",
-                        "/workspace/yolo/1.0.0",
-                        "/configs/yolo.yaml",
+                        "git:main@abc1234",
+                        "config:v1",
                         "初始版本，支持基础目标检测",
                         "local",
                         "gd-docker-preprocess:v1",   # 建议本地镜像
@@ -378,8 +383,8 @@ def seed_data() -> None:
                         "1.0.1",
                         "YOLO调试版",
                         "python main.py",
-                        "/workspace/yolo/1.0.1",
-                        "/configs/yolo_debug.yaml",
+                        "git:main@bcd2345",
+                        "config:v2",
                         "新增调试参数和可视化输出",
                         "local",
                         "gd-docker-preprocess:v2",

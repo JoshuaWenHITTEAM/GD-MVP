@@ -1,0 +1,17 @@
+services:
+  runtime-dev:
+    build:
+      context: .
+      dockerfile: runtime.Dockerfile
+    container_name: pre-unsharp-runtime-dev
+    working_dir: /workspace
+    command: >
+      uvicorn app.server:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /workspace/app
+    ports:
+      - "8006:8000"
+    volumes:
+      - ./app:/workspace/app

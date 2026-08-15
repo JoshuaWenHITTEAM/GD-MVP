@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Algorithm Chain Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Algorithm Chain</p>
+          <h1>Detection / Tracking Stream</h1>
+          <p class="subtext">
+            启动实时流任务。页面会持续展示共享内存里的当前图像；无目标时显示空结果，目标出现后立刻检测，消失后继续无结果输出。
+          </p>
+        </div>
+        <div class="controls">
+          <label class="field">
+            <span>Backend URL</span>
+            <input id="backendUrl" type="text" value="http://127.0.0.1:8010" />
+          </label>
+          <label class="field">
+            <span>Event Type</span>
+            <select id="eventType">
+              <option value="live_stream" selected>live_stream</option>
+            </select>
+          </label>
+          <div class="actions">
+            <button id="startBtn" type="button">Start Stream</button>
+            <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="status-bar">
+        <div class="status-item">
+          <span class="label">Task ID</span>
+          <span id="taskId">-</span>
+        </div>
+        <div class="status-item">
+          <span class="label">Phase</span>
+          <span id="phase">idle</span>
+        </div>
+        <div class="status-item wide">
+          <span class="label">Message</span>
+          <span id="message">等待启动。</span>
+        </div>
+      </section>
+
+      <section class="panels">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Detection</h2>
+            <span id="detectReason" class="tag">-</span>
+          </div>
+          <div class="image-wrap">
+            <img id="detectImage" alt="Detection frame" />
+          </div>
+          <pre id="detectResult" class="result-box">暂无检测结果</pre>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Tracking</h2>
+            <span id="trackReason" class="tag">-</span>
+          </div>
+          <div class="image-wrap">
+            <img id="trackImage" alt="Tracking frame" />
+          </div>
+          <pre id="trackResult" class="result-box">暂无跟踪结果</pre>
+        </article>
+      </section>
+
+      <section class="log-panel">
+        <div class="panel-head">
+          <h2>Event Log</h2>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,3 +1,65 @@
-.idea
+# Editors and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Python caches and test artifacts
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and runtime state
+.run_logs/
+*.log
+*.pid
+
+# Local upload and temporary files
+/uploads/
+/frontend/uploads/
+/frontend/tmp/
+/frontend/app/uploads/*
+!/frontend/app/uploads/.gitkeep
+!/frontend/app/uploads/__init__.py
+
+# Docker/database/object-storage volumes
+/data/
+/data/media-stack/.env
+/data/media-stack/postgres-data/
+/data/media-stack/minio-data/
+
+# External source/build checkout used for local MinIO image work
+/data/minio-src/
+
+# Training/runtime outputs
+/decision_algorithm/RL_train/runs/
+/decision_algorithm/images_build/**/tests/outputs/
+/decision_algorithm/**/sfk_demo/captures/
+
+# Model weights and binary runtime artifacts
+*.pt
+*.pth
+*.pth.tar
+*.onnx
+*.engine
+*.weights
+*.ckpt
+*.safetensors
+
+# Archives and packaged exports
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar

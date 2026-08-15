@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+import uuid as py_uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.database import Base
+
+
+class MediaAsset(Base):
+    __tablename__ = 'media_asset'
+    __table_args__ = (
+        UniqueConstraint('bucket_name', 'object_key', name='uq_media_asset_bucket_object'),
+        Index('idx_media_asset_uuid', 'uuid', unique=True),
+        Index('idx_media_asset_dataset_name', 'dataset_name'),
+        Index('idx_media_asset_media_type', 'media_type'),
+        Index('idx_media_asset_status', 'status'),
+        Index('idx_media_asset_split', 'split'),
+        Index('idx_media_asset_sequence_name', 'sequence_name'),
+        Index('idx_media_asset_modality', 'modality'),
+        Index('idx_media_asset_created_at', 'created_at'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    uuid: Mapped[py_uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        unique=True,
+        server_default=text('gen_random_uuid()'),
+    )
+
+    original_name: Mapped[str] = mapped_column(Text, nullable=False)
+    media_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    content_type: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    bucket_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    object_key: Mapped[str] = mapped_column(Text, nullable=False)
+
+    file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    etag: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'active'"))
+
+    dataset_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    split: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    sequence_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    modality: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    previewable: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    source_results: Mapped[list['AlgorithmResult']] = relationship(
+        back_populates='source_asset',
+        foreign_keys='AlgorithmResult.source_asset_id',
+    )
+    generated_results: Mapped[list['AlgorithmResult']] = relationship(
+        back_populates='result_asset',
+        foreign_keys='AlgorithmResult.result_asset_id',
+    )
+
+
+class AlgorithmResult(Base):
+    __tablename__ = 'algorithm_result'
+    __table_args__ = (
+        Index('idx_algorithm_result_uuid', 'uuid', unique=True),
+        Index('idx_algorithm_result_source_asset_id', 'source_asset_id'),
+        Index('idx_algorithm_result_result_asset_id', 'result_asset_id'),
+        Index('idx_algorithm_result_created_at', 'created_at'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    uuid: Mapped[py_uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        unique=True,
+        server_default=text('gen_random_uuid()'),
+    )
+
+    source_asset_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey('media_asset.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    result_asset_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey('media_asset.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    result_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    metrics: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    extra: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    source_asset: Mapped[MediaAsset] = relationship(
+        back_populates='source_results',
+        foreign_keys=[source_asset_id],
+    )
+    result_asset: Mapped[MediaAsset] = relationship(
+        back_populates='generated_results',
+        foreign_keys=[result_asset_id],
+    )

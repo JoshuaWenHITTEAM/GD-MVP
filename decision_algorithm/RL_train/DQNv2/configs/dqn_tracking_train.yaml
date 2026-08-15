@@ -1,0 +1,34 @@
+cuda: true
+torch_deterministic: true
+capture_video: false
+use_docker: false
+test_mode: false
+track: false
+wandb_project_name: CV_RL_PR_v1.0
+wandb_entity: null
+exp_name: dqn_tracking_train
+env_id: track
+modal: IR
+seed: 123
+total_timesteps: 100000
+learning_starts: 10000
+target_network_frequency: 100
+train_frequency: 20
+save_checkpoints_freq: 10000
+learning_rate: 1e-4
+batch_size: 32
+eval_episodes: 3
+num_layers: 18
+buffer_size: 5000
+gamma: 0.99
+tau: 1
+start_e: 1
+end_e: 0.05
+exploration_fraction: 0.5
+dataset_root: ./datasets/Anti-UAV-Tracking-V0
+results_root: ./outputs/vis_res
+output_root: ./tracking_outputs
+split: test
+models:
+  - siamRPN++
+  - AVtrack

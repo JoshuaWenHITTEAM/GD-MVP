@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "runtime-manifest.v1",
+  "algorithmKey": "det_redetr",
+  "algorithmType": "detection",
+  "composeFile": "compose.yaml",
+  "service": {
+    "containerName": "antiuav-det-redetr-runtime",
+    "host": "127.0.0.1",
+    "hostPort": 8001,
+    "healthPath": "/healthz",
+    "readyPath": "/ready",
+    "versionPath": "/version"
+  },
+  "invoke": {
+    "mode": "http",
+    "preferredInput": "url",
+    "urlEndpoint": {
+      "path": "/infer/url",
+      "method": "POST",
+      "contentType": "application/json",
+      "body": {
+        "model_name": "string",
+        "image_url": "string",
+        "return_image": true,
+        "return_yolo_txt": true
+      }
+    },
+    "fileEndpoint": {
+      "path": "/infer/file",
+      "method": "POST",
+      "contentType": "multipart/form-data",
+      "formFields": {
+        "model_name": "string",
+        "image": "file",
+        "return_image": true,
+        "return_yolo_txt": true
+      }
+    }
+  },
+  "artifacts": {
+    "modelRoot": "./models",
+    "defaultConfigPath": "./configs/predict.yaml"
+  }
+}

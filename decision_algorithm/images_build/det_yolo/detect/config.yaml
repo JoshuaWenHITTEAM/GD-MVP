@@ -1,0 +1,14 @@
+runtime:
+  default_model: default
+  device: auto
+  conf_threshold: 0.55
+  iou_threshold: 0.45
+  frame_stride: 1
+
+models:
+  default:
+    backend: ultralytics
+    weights: weights/anti_uav_yolov8n.pt
+    imgsz: 1280
+    target_classes:
+      - "0"

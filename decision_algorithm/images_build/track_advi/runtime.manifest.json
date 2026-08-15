@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "runtime-manifest.v1",
+  "algorithmKey": "track_advi",
+  "algorithmType": "tracking",
+  "composeFile": "compose.yaml",
+  "service": {
+    "containerName": "track-advi-runtime-dev",
+    "host": "127.0.0.1",
+    "hostPort": 8002,
+    "healthPath": "/healthz",
+    "readyPath": "/ready",
+    "versionPath": "/version"
+  },
+  "invoke": {
+    "mode": "http",
+    "preferredInput": "url",
+    "workflow": [
+      {
+        "step": "init",
+        "path": "/init/url",
+        "method": "POST",
+        "contentType": "application/json",
+        "body": {
+          "image_url": "string",
+          "initial_bbox_xyxy": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "return_image": true
+        }
+      },
+      {
+        "step": "track",
+        "path": "/track/url",
+        "method": "POST",
+        "contentType": "application/json",
+        "body": {
+          "image_url": "string",
+          "return_image": true
+        }
+      }
+    ]
+  },
+  "artifacts": {
+    "modelRoot": "./models",
+    "defaultConfigPath": "./configs/avtrack_deit_tiny_patch16_224.yaml"
+  }
+}

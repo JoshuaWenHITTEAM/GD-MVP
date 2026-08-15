@@ -13,6 +13,8 @@ class CreateAlgorithmRequest(BaseModel):
     framework: str = ""
     runtimeType: str = ""
     languageType: str = ""
+    codePath: str = ""
+    configPath: str = ""
     description: str = ""
 
 
@@ -20,8 +22,8 @@ class CreateVersionRequest(BaseModel):
     version: str
     versionName: str | None = None
     entrypoint: str
-    codePath: str = ""
-    configPath: str = ""
+    sourceRevision: str | None = None
+    configRevision: str | None = None
     changelog: str = ""
     sourceType: Literal["registry", "local"] = Field(default="local", description="镜像来源类型")
     localImageName: str = Field(default="", description="本地镜像名称")
@@ -44,6 +46,8 @@ class UpdateAlgorithmRequest(BaseModel):
     framework: str | None = None
     runtimeType: str | None = None
     languageType: str | None = None
+    codePath: str | None = None
+    configPath: str | None = None
     description: str | None = None
     status: str | None = None
 
@@ -52,8 +56,8 @@ class UpdateVersionRequest(BaseModel):
     version: str | None = None
     versionName: str | None = None
     entrypoint: str | None = None
-    codePath: str | None = None
-    configPath: str | None = None
+    sourceRevision: str | None = None
+    configRevision: str | None = None
     changelog: str | None = None
     publishStatus: Literal["DRAFT", "PUBLISHED", "OFFLINE"] | None = Field(
         default=None,
@@ -71,31 +75,6 @@ class UpdateVersionRequest(BaseModel):
     imageDigest: str | None = Field(default=None, description="镜像摘要")
     fullImageUri: str | None = Field(default=None, description="完整镜像地址")
     imageSize: int | None = Field(default=None, description="镜像大小")
-
-
-class DeploymentResources(BaseModel):
-    cpu: str | None = None
-    memory: str | None = None
-
-
-class CreateDeploymentRequest(BaseModel):
-    versionUuid: str
-    namespace: str = "default"
-    port: int
-    replicas: int = 1
-    env: dict[str, str] = Field(default_factory=dict)
-    resources: DeploymentResources | None = None
-
-
-class UpdateDeploymentRequest(BaseModel):
-    versionUuid: str | None = None
-    port: int | None = None
-    env: dict[str, str] | None = None
-    resources: DeploymentResources | None = None
-
-
-class ScaleRequest(BaseModel):
-    replicas: int
 
 
 class CreateBuildRecordRequest(BaseModel):
@@ -128,3 +107,9 @@ class UpdateBuildRecordRequest(BaseModel):
     errorMessage: str | None = None
     resultSummary: str | None = None
     finishedAt: datetime | None = None
+
+
+class SaveHotUpdateRequest(BaseModel):
+    content: str
+    version: str | None = None
+    changelog: str = ""

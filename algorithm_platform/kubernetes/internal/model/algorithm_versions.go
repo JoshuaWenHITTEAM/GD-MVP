@@ -17,8 +17,6 @@ type AlgorithmVersion struct {
 	VersionName string `gorm:"column:versionName;type:varchar(128);not null" json:"versionName"`
 
 	Entrypoint string `gorm:"column:entrypoint;type:varchar(255);not null" json:"entrypoint"`
-	CodePath   string `gorm:"column:codePath;type:varchar(255);not null" json:"codePath"`
-	ConfigPath string `gorm:"column:configPath;type:varchar(255);not null" json:"configPath"`
 	Changelog  string `gorm:"column:changelog;type:text;not null" json:"changelog"`
 
 	SourceType      string `gorm:"column:sourceType;type:varchar(32);not null" json:"sourceType"`
