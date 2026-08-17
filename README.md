@@ -1,7 +1,7 @@
 <div align="center">
   <h3>🎬 项目演示视频合集</h3>
   <p style="color: #656d76; max-width: 600px; margin: 0 auto 20px;">
-    本播放列表包含项目核心功能演示、快速上手教程与进阶使用技巧，点击卡片即可跳转至 YouTube 观看完整内容。
+    本播放列表包含项目核心功能演示，点击卡片即可跳转至 YouTube 观看完整内容。
   </p>
 
   <a href="https://www.youtube.com/playlist?list=PLa77GHCMRI4U" target="_blank" style="text-decoration: none;">
